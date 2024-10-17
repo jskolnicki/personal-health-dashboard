@@ -1,4 +1,5 @@
-from models import create_database
+from models import get_database_engine, create_tables
 
 if __name__ == "__main__":
-    create_database()
+    engine = get_database_engine()
+    create_tables(engine)

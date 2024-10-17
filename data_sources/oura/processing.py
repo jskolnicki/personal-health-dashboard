@@ -1,6 +1,8 @@
 import sys
 import os
-from datetime import date, timedelta, datetime
+import logging
+from datetime import date, timedelta, datetime, timezone
+from dateutil import parser
 from typing import List, Dict, Tuple
 
 # Add the project root directory to Python path
@@ -9,30 +11,14 @@ sys.path.append(project_root)
 
 from data_sources.oura.api import OuraAPI
 from database.db_manager import DatabaseManager
-from database.models import create_database
+from database.models import get_database_engine
 
-#TODO preserve the time zones for this https://claude.ai/chat/e3decb0b-02df-4f34-9260-a4b74279cd61
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def get_sleep_data(start_date: date = date.today() - timedelta(days=7), 
-                   end_date: date = date.today()) -> List[Dict]:
-    """
-    Retrieves sleep data for the specified date range using the Oura API.
-    
-    Args:
-    start_date (date): The start date for fetching sleep data.
-    end_date (date): The end date for fetching sleep data.
-    
-    Returns:
-    List[Dict]: A list of sleep data entries for the specified date range.
-    """
-    oura_api = OuraAPI()
-    
-    try:
-        response = oura_api.get_sleep_data(start_date, end_date)
-        return response['data']
-    except Exception as e:
-        print(f"Error fetching sleep data: {str(e)}")
-        return []
+def get_user_id():
+    #TODO implement logic to retrieve the User ID.
+    return 1
 
 def categorize_sleep_sessions(sleep_sessions: List[Dict]) -> Tuple[Dict, List[Dict]]:
     """
@@ -71,17 +57,8 @@ def categorize_sleep_sessions(sleep_sessions: List[Dict]) -> Tuple[Dict, List[Di
     return main_sleep, naps
 
 def calculate_sleep_metrics(sleep_data: Dict) -> Dict:
-    """
-    Calculates custom sleep metrics based on the sleep phase data.
-    
-    Args:
-    sleep_data (Dict): Raw sleep data for a single sleep session.
-    
-    Returns:
-    Dict: Dictionary containing calculated sleep metrics.
-    """
-    bedtime_start = datetime.fromisoformat(sleep_data['bedtime_start'])
-    bedtime_end = datetime.fromisoformat(sleep_data['bedtime_end'])
+    bedtime_start = parser.isoparse(sleep_data['bedtime_start'])
+    bedtime_end = parser.isoparse(sleep_data['bedtime_end'])
     sleep_phases = sleep_data['sleep_phase_5_min']
     
     # Calculate sleep_start
@@ -102,84 +79,108 @@ def calculate_sleep_metrics(sleep_data: Dict) -> Dict:
             break
     sleep_end = bedtime_end - timedelta(minutes=final_awake * 5)
     
-    # Calculate sleep_awake_time
-    sleep_awake_time = 0
+    # Calculate midsleep_awake_time
+    midsleep_awake_time = 0
     awake_streak = 0
     for phase in sleep_phases[initial_awake:-final_awake or None]:
         if phase == '4':
             awake_streak += 1
         else:
             if awake_streak > 1:
-                sleep_awake_time += awake_streak * 5
+                midsleep_awake_time += awake_streak * 5
             awake_streak = 0
     
     return {
         'sleep_start': sleep_start,
         'sleep_end': sleep_end,
-        'sleep_awake_time': sleep_awake_time
+        'midsleep_awake_time': midsleep_awake_time
     }
 
-def process_sleep_data(raw_sleep_data, user_id=1):
-    processed_sleep = []
-    processed_naps = []
+def process_sleep_session(session: Dict, user_id: int) -> Dict:
+    def process_datetime(dt):
+        offset = dt.utcoffset()
+        offset_minutes = int(offset.total_seconds() / 60) if offset else 0
+        return dt.replace(tzinfo=None), offset_minutes
 
-    # Group sleep sessions by date
-    sleep_by_date = {}
-    for sleep in raw_sleep_data:
-        date = sleep['day']
-        if date not in sleep_by_date:
-            sleep_by_date[date] = []
-        sleep_by_date[date].append(sleep)
-
-    for date, sessions in sleep_by_date.items():
-        main_sleep, naps = categorize_sleep_sessions(sessions)
-
-        # Process main sleep
-        if main_sleep:
-            processed = process_single_sleep_session(main_sleep, user_id)
-            processed_sleep.append(processed)
-
-        # Process naps
-        for nap in naps:
-            processed = process_single_sleep_session(nap, user_id)
-            processed_naps.append(processed)
-
-    return processed_sleep, processed_naps
-
-def process_single_sleep_session(sleep, user_id):
-    custom_metrics = calculate_sleep_metrics(sleep)
+    custom_metrics = calculate_sleep_metrics(session)
     
-    return {
+    bedtime_start, timezone_offset = process_datetime(parser.isoparse(session['bedtime_start']))
+    bedtime_end, _ = process_datetime(parser.isoparse(session['bedtime_end']))
+    sleep_start, _ = process_datetime(custom_metrics['sleep_start'])
+    sleep_end, _ = process_datetime(custom_metrics['sleep_end'])
+
+    processed_data = {
         'user_id': user_id,
-        'date': sleep['day'],
-        'bedtime_start': sleep['bedtime_start'],
-        'bedtime_end': sleep['bedtime_end'],
-        'sleep_start': custom_metrics['sleep_start'],
-        'sleep_end': custom_metrics['sleep_end'],
-        'total_sleep_duration': sleep['total_sleep_duration'],
-        'time_in_bed': sleep['time_in_bed'],
-        'sleep_awake_time': custom_metrics['sleep_awake_time'],
-        'deep_sleep_duration': sleep.get('deep_sleep_duration', 0),
-        'light_sleep_duration': sleep.get('light_sleep_duration', 0),
-        'rem_sleep_duration': sleep.get('rem_sleep_duration', 0),
-        'restless_periods': sleep.get('restless_periods', 0),
-        'average_heart_rate': sleep.get('average_heart_rate'),
-        'average_hrv': sleep.get('average_hrv')
+        'date': session['day'],
+        'bedtime_start': bedtime_start,
+        'bedtime_end': bedtime_end,
+        'sleep_start': sleep_start,
+        'sleep_end': sleep_end,
+        'timezone_offset': timezone_offset,
+        'total_sleep_duration': session['total_sleep_duration'],
+        'time_in_bed': session['time_in_bed'],
+        'sleep_awake_time': session['awake_time'],
+        'midsleep_awake_time': custom_metrics['midsleep_awake_time'],
+        'deep_sleep_duration': session.get('deep_sleep_duration', 0),
+        'light_sleep_duration': session.get('light_sleep_duration', 0),
+        'rem_sleep_duration': session.get('rem_sleep_duration', 0),
+        'restless_periods': session.get('restless_periods', 0),
+        'average_heart_rate': session.get('average_heart_rate'),
+        'average_hrv': session.get('average_hrv'),
+        'latency': session.get('latency')
     }
 
-# Example usage
-if __name__ == "__main__":
-    engine = create_database()
-    db_manager = DatabaseManager(engine)
+    return processed_data
 
-    end_date = date.today()
-    start_date = end_date - timedelta(days=7)
-    
-    raw_sleep_data = get_sleep_data(start_date, end_date)
-    
-    if not raw_sleep_data:
-        print("No sleep data available.")
-    else:
-        processed_sleep, processed_naps = process_sleep_data(raw_sleep_data)
-        db_manager.upsert_sleep_data(processed_sleep)
-        db_manager.upsert_nap_data(processed_naps)
+def process_oura_data(oura_data: List[Dict], user_id: int) -> Tuple[List[Dict], List[Dict]]:
+    sleep_data = []
+    nap_data = []
+
+    # Group sessions by day
+    sessions_by_day = {}
+    for session in oura_data:
+        day = session['day']
+        if day not in sessions_by_day:
+            sessions_by_day[day] = []
+        sessions_by_day[day].append(session)
+
+    # Process each day
+    for day, sessions in sessions_by_day.items():
+        main_sleep, naps = categorize_sleep_sessions(sessions)
+        
+        sleep_data.append(process_sleep_session(main_sleep, user_id))
+        
+        for nap in naps:
+            nap_data.append(process_sleep_session(nap, user_id))
+
+    return sleep_data, nap_data
+
+
+if __name__ == "__main__":
+    try:
+        engine = get_database_engine()
+        db_manager = DatabaseManager(engine)
+
+        user_id = get_user_id()
+        end_date = date.today() + timedelta(days=1)
+        start_date = end_date - timedelta(days=7)
+        
+        logging.info(f"Fetching sleep data for user {user_id} from {start_date} to {end_date}")
+        
+        oura_api = OuraAPI()
+        raw_sleep_data = oura_api.get_sleep_data(start_date, end_date)
+        
+        if not raw_sleep_data or 'data' not in raw_sleep_data:
+            logging.warning("No sleep data available or invalid response from Oura API.")
+        else:
+            processed_sleep_data, processed_nap_data = process_oura_data(raw_sleep_data['data'], user_id)
+            
+            logging.info(f"Inserting {len(processed_sleep_data)} sleep records and {len(processed_nap_data)} nap records")
+            
+            db_manager.upsert_sleep_data(processed_sleep_data)
+            db_manager.upsert_nap_data(processed_nap_data)
+            
+            logging.info("Data insertion completed successfully")
+
+    except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")

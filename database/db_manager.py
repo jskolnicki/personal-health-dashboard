@@ -2,6 +2,8 @@ import os
 import sys
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
+from dateutil import parser
 
 # Add the project root directory to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -17,9 +19,10 @@ class DatabaseManager:
         session = self.Session()
         try:
             for sleep in sleep_data:
+                date = parser.isoparse(sleep['date']).date()
                 existing = session.query(SleepData).filter_by(
                     user_id=sleep['user_id'],
-                    date=sleep['date']
+                    date=date
                 ).first()
 
                 if existing:
@@ -41,9 +44,10 @@ class DatabaseManager:
         session = self.Session()
         try:
             for nap in nap_data:
+                date = parser.isoparse(nap['date']).date()
                 existing = session.query(NapData).filter_by(
                     user_id=nap['user_id'],
-                    date=nap['date'],
+                    date=date,
                     bedtime_start=nap['bedtime_start']
                 ).first()
 

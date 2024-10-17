@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, ForeignKey, UniqueConstraint, Float
+from sqlalchemy import create_engine, inspect, Column, Integer, SmallInteger, String, DateTime, Date, ForeignKey, UniqueConstraint, Float
+from sqlalchemy.dialects.mysql import TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -31,18 +32,21 @@ class SleepData(Base):
     bedtime_end = Column(DateTime, nullable=False)
     sleep_start = Column(DateTime, nullable=False)
     sleep_end = Column(DateTime, nullable=False)
-    total_sleep_duration = Column(Integer, nullable=False)  # in seconds
-    time_in_bed = Column(Integer, nullable=False)  # in seconds
-    sleep_awake_time = Column(Integer, nullable=False)  # in seconds
-    deep_sleep_duration = Column(Integer, nullable=False)  # in seconds
-    light_sleep_duration = Column(Integer, nullable=False)  # in seconds
-    rem_sleep_duration = Column(Integer, nullable=False)  # in seconds
+    timezone_offset = Column(SmallInteger, nullable=False)
+    total_sleep_duration = Column(Integer, nullable=False)
+    latency = Column(Integer, nullable=True)
+    time_in_bed = Column(Integer, nullable=False)
+    sleep_awake_time = Column(Integer, nullable=False)
+    midsleep_awake_time = Column(Integer, nullable=False)
+    deep_sleep_duration = Column(Integer, nullable=False)
+    light_sleep_duration = Column(Integer, nullable=False)
+    rem_sleep_duration = Column(Integer, nullable=False)
     restless_periods = Column(Integer, nullable=False)
     average_heart_rate = Column(Float, nullable=True)
     average_hrv = Column(Float, nullable=True)
     
     user = relationship("User", back_populates="sleep_data")
-
+    
     __table_args__ = (
         UniqueConstraint('user_id', 'date', name='uix_user_date'),
     )
@@ -57,23 +61,26 @@ class NapData(Base):
     bedtime_end = Column(DateTime, nullable=False)
     sleep_start = Column(DateTime, nullable=False)
     sleep_end = Column(DateTime, nullable=False)
-    total_sleep_duration = Column(Integer, nullable=False)  # in seconds
-    time_in_bed = Column(Integer, nullable=False)  # in seconds
-    sleep_awake_time = Column(Integer, nullable=False)  # in seconds
-    deep_sleep_duration = Column(Integer, nullable=False)  # in seconds
-    light_sleep_duration = Column(Integer, nullable=False)  # in seconds
-    rem_sleep_duration = Column(Integer, nullable=False)  # in seconds
+    timezone_offset = Column(SmallInteger, nullable=False)
+    total_sleep_duration = Column(Integer, nullable=False)
+    latency = Column(Integer, nullable=True)
+    time_in_bed = Column(Integer, nullable=False)
+    sleep_awake_time = Column(Integer, nullable=False)
+    midsleep_awake_time = Column(Integer, nullable=False)
+    deep_sleep_duration = Column(Integer, nullable=False)
+    light_sleep_duration = Column(Integer, nullable=False)
+    rem_sleep_duration = Column(Integer, nullable=False)
     restless_periods = Column(Integer, nullable=False)
     average_heart_rate = Column(Float, nullable=True)
     average_hrv = Column(Float, nullable=True)
     
     user = relationship("User", back_populates="nap_data")
-
+    
     __table_args__ = (
         UniqueConstraint('user_id', 'date', 'bedtime_start', name='uix_user_date_bedtime'),
     )
 
-def create_database():
+def get_database_engine():
     username = os.getenv('DB_USERNAME')
     password = os.getenv('DB_PASSWORD')
     host = os.getenv('DB_HOST')
@@ -87,16 +94,22 @@ def create_database():
     
     try:
         engine = create_engine(connection_string)
-        # Try to connect to the database
+        # Test the connection
         with engine.connect() as connection:
             print(f"Successfully connected to database: {db_name}")
-        
-        # If connection successful, create tables
-        Base.metadata.create_all(engine, checkfirst=True)
-        print("Database tables created or updated successfully.")
-        
         return engine
     except SQLAlchemyError as e:
         print(f"Error connecting to the database. Details: {str(e)}")
-        print(f"Connection string used: {connection_string}")
         raise
+
+def create_tables(engine):
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    
+    tables_to_create = [table for name, table in Base.metadata.tables.items() if name not in existing_tables]
+    
+    if tables_to_create:
+        Base.metadata.create_all(engine, tables=tables_to_create)
+        print(f"Created tables: {', '.join(table.name for table in tables_to_create)}")
+    else:
+        print("All tables already exist.")
