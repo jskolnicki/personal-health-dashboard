@@ -4,11 +4,41 @@ This project aggregates and analyzes personal health data, primarily from the Ou
 
 ## Features
 
-- Daily data retrieval from Oura Ring API
-- Storage of sleep and nap data in a local MySQL database
+- Daily automated data retrieval from Oura Ring API
+- Processing and storage of sleep and nap data in a local MySQL database
 - Modular design for easy integration of future data sources
+- Automated logging system for tracking data processing and potential issues
+
+## Project Structure
+
+```
+project_root/
+├── data_sources/
+│   └── oura/
+│       ├── api.py
+│       └── processing.py
+├── database/
+│   ├── create_db.py
+│   ├── db_manager.py
+│   └── models.py
+├── utils/
+│   └── logging_config.py
+├── .env
+├── .gitignore
+├── main.py
+└── requirements.txt
+```
+
+- `data_sources/`: API integrations and processing scripts
+- `database/`: Database models, management, and creation scripts
+- `utils/`: Utility functions, including logging configuration
+- `main.py`: Main execution script for data processing
+- `.env`: Environment variables (not in version control)
+- `requirements.txt`: Project dependencies
 
 ## Setup
+
+This project was developed and tested with Python 3.10. Ensure you have Python 3.8 or higher installed before proceeding.
 
 1. Clone the repository
 2. Set up a virtual environment:
@@ -34,49 +64,60 @@ This project aggregates and analyzes personal health data, primarily from the Ou
    Replace the values with your actual database credentials and Oura API token.
 6. Run the database setup script:
    ```
-   python create_db.py
+   python database/create_db.py
    ```
-7. Run the main script (once it's developed):
+7. Run the main script to process data:
    ```
    python main.py
    ```
 
-## Project Structure
-
-- `config/`: Configuration settings
-- `data_sources/`: API integrations (currently Oura Ring)
-  - `oura/`: Oura Ring API integration
-    - `api.py`: Oura API client
-    - `processing.py`: Data processing for Oura data
-- `database/`: Database models and management
-  - `models.py`: SQLAlchemy models for database tables
-- `utils/`: Utility functions for data processing
-- `create_db.py`: Script to set up the database
-- `main.py`: Main execution script (to be developed)
-- `.env`: Environment variables (not in version control)
-- `requirements.txt`: Project dependencies
-
 ## Database Schema
 
-The project currently uses two main tables:
+The project uses two main tables:
 
 1. `sleep_data`: Stores nightly sleep information
 2. `nap_data`: Stores daytime nap information
 
 Both tables include detailed sleep metrics such as sleep duration, sleep stages, heart rate, and HRV.
 
+## Data Processing
+
+The `main.py` script automates the following process:
+- Retrieves sleep data from the Oura API for the last 3 days by default
+- Processes and categorizes the data into sleep and nap records
+- Upserts the processed data into the database
+
+To modify the date range for data retrieval, adjust the `start_date` and `end_date` variables in `main.py`.
+
+## Logging
+
+This application uses a centralized logging system. Logs are written to 'personal_health_analytics.log' in the 'logs' directory, which is created automatically if it doesn't exist. 
+
+Log messages include timestamps, log levels, and contextual information about the operation being performed. Both file and console logging are enabled by default.
+
+Note: Log files are not tracked by git.
+
+## Running the Application
+
+For daily data processing, run:
+
+```
+python main.py
+```
+
+This will process data for the last 3 days by default. To process data for a specific date range, modify the `start_date` and `end_date` variables in `main.py`.
+
 ## Future Plans
 
-- Implement data retrieval and processing from Oura API
-- Develop main execution script
 - Add data visualization capabilities
 - Implement trend analysis and insights generation
 - Integration with additional data sources
 
-## Contributing
+## Troubleshooting
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+If you encounter any issues:
+1. Check the log files in the `logs` directory for error messages.
+2. Ensure your `.env` file contains the correct database credentials and API tokens.
+3. Verify that your database is running and accessible.
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+For any persistent problems, please open an issue in the project repository.

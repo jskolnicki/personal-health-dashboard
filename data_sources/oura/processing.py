@@ -1,9 +1,22 @@
-import logging
+import os
+import sys
 from datetime import datetime, timedelta
 from dateutil import parser
 from typing import List, Dict, Tuple
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Add the project root directory to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(project_root)
 
 from data_sources.oura.api import OuraAPI
+from utils.logging_config import setup_logging
+
+# Set up logging
+logger = setup_logging()
 
 def categorize_sleep_sessions(sleep_sessions: List[Dict]) -> Tuple[Dict, List[Dict]]:
     """
@@ -144,24 +157,44 @@ def update_oura_sleep_data(db_manager, start_date, end_date):
     try:
         user_id = 1  # TODO: Implement logic to retrieve the User ID
 
-        logging.info(f"Fetching sleep data for user {user_id} from {start_date} to {end_date}")
+        logger.debug(f"Fetching sleep data for user {user_id} from {start_date} to {end_date}")
         
         oura_api = OuraAPI()
         raw_sleep_data = oura_api.get_sleep_data(start_date, end_date)
         
         if not raw_sleep_data or 'data' not in raw_sleep_data:
-            logging.warning("No sleep data available or invalid response from Oura API.")
+            logger.warning("No sleep data available or invalid response from Oura API.")
             return
         
         processed_sleep_data, processed_nap_data = process_oura_data(raw_sleep_data['data'], user_id)
         
-        logging.info(f"Inserting {len(processed_sleep_data)} sleep records and {len(processed_nap_data)} nap records")
+        logger.debug(f"Inserting {len(processed_sleep_data)} sleep records and {len(processed_nap_data)} nap records")
         
         db_manager.upsert_sleep_data(processed_sleep_data)
         db_manager.upsert_nap_data(processed_nap_data)
         
-        logging.info("Data insertion completed successfully")
+        logger.info(f"Oura data upserted: {len(processed_sleep_data)} sleep records, {len(processed_nap_data)} nap records.")
 
     except Exception as e:
-        logging.error(f"An error occurred while processing Oura sleep data: {str(e)}")
+        logger.error(f"An error occurred while processing Oura sleep data: {str(e)}")
         raise
+
+if __name__ == "__main__":
+    from database.db_manager import DatabaseManager
+    from database.models import get_database_engine
+    
+    engine = get_database_engine()
+    db_manager = DatabaseManager(engine)
+    end_date = datetime.now().date() + timedelta(days=1)
+    start_date = end_date - timedelta(days=3)
+
+    # Uncomment and modify these lines to set specific dates
+    # end_date = date(2024, 1, 1)
+    # start_date = date(2023, 1, 1)
+    
+    try:
+        update_oura_sleep_data(db_manager, start_date, end_date)
+        print("Oura sleep data update completed successfully.")
+    except Exception as e:
+        print(f"Failed to update Oura sleep data: {e}")
+        sys.exit(1)
