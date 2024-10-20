@@ -13,6 +13,7 @@ env/
 .idea/
 
 # Logs
+logs/
 *.log
 
 # Database
