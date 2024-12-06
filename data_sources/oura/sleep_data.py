@@ -1,21 +1,25 @@
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dateutil import parser
 from typing import List, Dict, Tuple
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Define paths
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
 
-# Add the project root directory to Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.append(project_root)
+# Add project root to Python path
+sys.path.append(PROJECT_ROOT)
+
+from database.models import SleepData
+
+# Load environment variables from the project root's .env file
+load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 
 from data_sources.oura.api import OuraAPI
 from utils.logging_config import setup_logging
 
-# Set up logging
 logger = setup_logging()
 
 def categorize_sleep_sessions(sleep_sessions: List[Dict]) -> Tuple[Dict, List[Dict]]:
@@ -154,7 +158,16 @@ def process_oura_data(oura_data: List[Dict], user_id: int) -> Tuple[List[Dict], 
     return sleep_data, nap_data
 
 def update_oura_sleep_data(db_manager, start_date, end_date):
+    """
+    Update Oura sleep data in the database.
+    If no date range is provided, it will determine the range based on the most recent record.
+    """
     try:
+        if not (start_date and end_date):
+            start_date, end_date = db_manager.get_update_date_range(SleepData)
+            
+        logger.debug(f"Updating Oura sleep data from {start_date} to {end_date}")
+
         user_id = 1  # TODO: Implement logic to retrieve the User ID
 
         logger.debug(f"Fetching sleep data for user {user_id} from {start_date} to {end_date}")
@@ -185,12 +198,13 @@ if __name__ == "__main__":
     
     engine = get_database_engine()
     db_manager = DatabaseManager(engine)
-    end_date = datetime.now().date() + timedelta(days=1)
-    start_date = end_date - timedelta(days=3)
 
-    # Uncomment and modify these lines to set specific dates
-    # end_date = date(2024, 1, 1)
-    # start_date = date(2023, 1, 1)
+    # Setting start_date and end_date to None updates from the last updated date in the database
+    start_date = None
+    end_date = None
+
+    # start_date = date(2024, 1, 1) # for custom date range
+    # end_date = date(2024, 12, 31) # for custom date range
     
     try:
         update_oura_sleep_data(db_manager, start_date, end_date)

@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, inspect, Column, Integer, SmallInteger, String, DateTime, Date, ForeignKey, UniqueConstraint, Float
+from sqlalchemy import create_engine, inspect, Column, Integer, SmallInteger, String, DateTime, Date, ForeignKey, UniqueConstraint, Float, Index, Numeric, Boolean
 from sqlalchemy.dialects.mysql import TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -78,6 +78,31 @@ class NapData(Base):
     
     __table_args__ = (
         UniqueConstraint('user_id', 'date', 'bedtime_start', name='uix_user_date_bedtime'),
+    )
+
+class FinanceData(Base):
+    __tablename__ = 'finances'
+    
+    transaction_date = Column(Date, nullable=False)
+    description = Column(String(255), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    category = Column(String(100), nullable=False)
+    transaction_type = Column(String(10), nullable=False)
+    gift_type = Column(String(10), nullable=True)
+    person = Column(String(100), nullable=True)
+    notes = Column(String(1000), nullable=True)
+    account_name = Column(String(100), nullable=True)
+    is_date = Column(Boolean, default=False, nullable=False)
+    is_vacation = Column(Boolean, default=False, nullable=False)
+    is_birthday = Column(Boolean, default=False, nullable=False)
+    is_christmas = Column(Boolean, default=False, nullable=False)
+    transaction_hash = Column(String(32), primary_key=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_finances_date', 'transaction_date'),
+        Index('idx_finances_category', 'category'),
     )
 
 def get_database_engine():
