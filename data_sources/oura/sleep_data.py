@@ -203,8 +203,8 @@ if __name__ == "__main__":
     start_date = None
     end_date = None
 
-    # start_date = date(2024, 1, 1) # for custom date range
-    # end_date = date(2024, 12, 31) # for custom date range
+    # start_date = date(2024, 11, 19) # for custom date range
+    # end_date = date(2024, 12, 10) # for custom date range
     
     try:
         update_oura_sleep_data(db_manager, start_date, end_date)
