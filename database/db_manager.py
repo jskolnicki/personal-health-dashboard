@@ -22,7 +22,7 @@ logger = setup_logging()
 from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 
-from database.models import SleepData, NapData
+from database.models import SleepData, NapData, RizeSession, RizeSummary
 
 
 ###############################################################################################
@@ -131,5 +131,72 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             session.rollback()
             print(f"Error upserting nap data: {e}")
+        finally:
+            session.close()
+
+    def upsert_rize_sessions(self, session_data):
+        session = self.Session()
+        try:
+            for record in session_data:
+                existing = session.query(RizeSession).filter_by(
+                    session_id=record['session_id']
+                ).first()
+
+                if existing:
+                    for key, value in record.items():
+                        if key not in ['created_at']:  # Don't update creation timestamp
+                            setattr(existing, key, value)
+                else:
+                    new_session = RizeSession(**record)
+                    session.add(new_session)
+
+            session.commit()
+            print(f"Successfully upserted {len(session_data)} Rize session records.")
+            
+        except SQLAlchemyError as e:
+            session.rollback()
+            print(f"Error upserting Rize session data: {e}")
+            raise
+        
+        finally:
+            session.close()
+
+    def upsert_rize_summaries(self, summary_data):
+        session = self.Session()
+        try:
+            for record in summary_data:
+                existing = session.query(RizeSummary).filter_by(
+                    date=record['date']
+                ).first()
+
+                if existing:
+                    for key, value in record.items():
+                        if key not in ['created_at']:  # Don't update creation timestamp
+                            setattr(existing, key, value)
+                else:
+                    new_summary = RizeSummary(**record)
+                    session.add(new_summary)
+
+            session.commit()
+            print(f"Successfully upserted {len(summary_data)} Rize summary records.")
+            
+        except SQLAlchemyError as e:
+            session.rollback()
+            print(f"Error upserting Rize summary data: {e}")
+            raise
+        
+        finally:
+            session.close()
+
+    def get_existing_session_ids(self, start_date, end_date):
+        """
+        Get set of Rize session IDs for a date range
+        """
+        session = self.Session()
+        try:
+            result = session.query(RizeSession.session_id)\
+                .filter(RizeSession.date.between(start_date, end_date))\
+                .all()
+            return set(row[0] for row in result)
         finally:
             session.close()

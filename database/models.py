@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, inspect, Column, Integer, SmallInteger, String, DateTime, Date, ForeignKey, UniqueConstraint, Float
+from sqlalchemy import create_engine, inspect, Column, Integer, SmallInteger, String, DateTime, Date, ForeignKey, UniqueConstraint, Float, Index, Numeric, Boolean
 from sqlalchemy.dialects.mysql import TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -78,6 +78,54 @@ class NapData(Base):
     
     __table_args__ = (
         UniqueConstraint('user_id', 'date', 'bedtime_start', name='uix_user_date_bedtime'),
+    )
+
+class RizeSession(Base):
+    __tablename__ = 'rize_sessions'
+    
+    session_id = Column(String(50), primary_key=True)
+    title = Column(String(255), nullable=True)
+    description = Column(String(1000), nullable=True)
+    type = Column(String(50), nullable=True)
+    source = Column(String(50), nullable=True)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    date = Column(Date, nullable=False)
+    duration_minutes = Column(Integer, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_rize_sessions_date', 'date'),  # For date range queries
+        Index('idx_rize_sessions_type', 'type'),  # For filtering by session type
+        Index('idx_rize_sessions_source', 'source'),  # For filtering by application
+        Index('idx_rize_sessions_date_type', 'date', 'type'),  # For combined date+type queries
+        Index('idx_rize_sessions_start_time', 'start_time'),  # For filtering sessions after X time
+        Index('idx_rize_sessions_end_time', 'end_time'),  # For filtering sessions before Y time
+        Index('idx_rize_sessions_timespan', 'start_time', 'end_time')  # For time range overlaps
+    )
+
+class RizeSummary(Base):
+    __tablename__ = 'rize_summaries'
+    
+    date = Column(Date, primary_key=True)
+    wday = Column(String(10), nullable=False)
+    focus_time = Column(Integer, nullable=False)
+    break_time = Column(Integer, nullable=False)
+    meeting_time = Column(Integer, nullable=False)
+    tracked_time = Column(Integer, nullable=False)
+    work_hours = Column(Integer, nullable=False)
+    daily_meeting_time_average = Column(Integer, nullable=False)
+    daily_tracked_time_average = Column(Integer, nullable=False)
+    daily_focus_time_average = Column(Integer, nullable=False)
+    daily_work_hours_average = Column(Integer, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_rize_summaries_date', 'date'),  # Already have this one
+        Index('idx_rize_summaries_wday', 'wday'),  # For day-of-week analysis
+        Index('idx_rize_summaries_date_wday', 'date', 'wday'),  # For combined queries
     )
 
 def get_database_engine():

@@ -1,13 +1,13 @@
-import os
-import sys
 from datetime import date, timedelta
 from typing import Optional, Dict, Tuple, Callable
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from data_sources.oura.sleep_data import update_oura_sleep_data
+from data_sources.rize.rize import update_rize_data
 from database.db_manager import DatabaseManager
-from database.models import get_database_engine, SleepData
+from database.models import get_database_engine, SleepData, RizeSummary, RizeSession
 from utils.logging_config import setup_logging
 from utils.blinkstick import indicate_status, turn_off, set_color
 
@@ -48,6 +48,13 @@ def main(global_date_range: Optional[Tuple[date, date]] = None):
             model_class=SleepData,
             date_column='date',
             # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Oura
+        ),
+        DataSource(
+            name="Rize",
+            update_func=update_rize_data,
+            model_class=RizeSummary,  # Using RizeSummary as the primary model for date tracking
+            date_column='date',
+            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Rize
         )
     ]
 
