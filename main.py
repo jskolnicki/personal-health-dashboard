@@ -6,8 +6,10 @@ load_dotenv()
 
 from data_sources.oura.sleep_data import update_oura_sleep_data
 from data_sources.rize.rize import update_rize_data
+from data_sources.google_sheets.finances import update_finance_data
+from data_sources.google_sheets.vitals import update_vitals_data
 from database.db_manager import DatabaseManager
-from database.models import get_database_engine, SleepData, RizeSummary, RizeSession
+from database.models import get_database_engine, SleepData, RizeSummary, RizeSession, FinanceData, Vitals
 from utils.logging_config import setup_logging
 from utils.blinkstick import indicate_status, turn_off, set_color
 
@@ -55,6 +57,20 @@ def main(global_date_range: Optional[Tuple[date, date]] = None):
             model_class=RizeSummary,  # Using RizeSummary as the primary model for date tracking
             date_column='date',
             # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Rize
+        ),
+        DataSource(
+            name="Finances",
+            update_func=update_finance_data,
+            model_class=FinanceData,
+            date_column='transaction_date',
+            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Finances
+        ),
+        DataSource(
+            name="Vitals",
+            update_func=update_vitals_data,
+            model_class=Vitals,
+            date_column='date',
+            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Vitals
         )
     ]
 

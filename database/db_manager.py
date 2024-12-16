@@ -22,7 +22,7 @@ logger = setup_logging()
 from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 
-from database.models import SleepData, NapData, RizeSession, RizeSummary
+from database.models import SleepData, NapData, RizeSession, RizeSummary, FinanceData
 
 
 ###############################################################################################
@@ -196,6 +196,53 @@ class DatabaseManager:
         try:
             result = session.query(RizeSession.session_id)\
                 .filter(RizeSession.date.between(start_date, end_date))\
+                .all()
+            return set(row[0] for row in result)
+        finally:
+            session.close()
+
+    def upsert_finance_data(self, finance_data):
+        session = self.Session()
+        try:
+            for transaction in finance_data:
+                # Ensure transaction_date is a date object
+                if isinstance(transaction['transaction_date'], str):
+                    transaction['transaction_date'] = parser.parse(transaction['transaction_date']).date()
+                
+                # Query for existing transaction by transaction_hash
+                existing = session.query(FinanceData).filter_by(
+                    transaction_hash=transaction['transaction_hash']
+                ).first()
+
+                if existing:
+                    # Update existing transaction
+                    for key, value in transaction.items():
+                        if key not in ['id', 'created_at']:  # Don't update these fields
+                            setattr(existing, key, value)
+                else:
+                    # Create new transaction
+                    new_transaction = FinanceData(**transaction)
+                    session.add(new_transaction)
+
+            session.commit()
+            print(f"Successfully upserted {len(finance_data)} finance records.")
+            
+        except SQLAlchemyError as e:
+            session.rollback()
+            print(f"Error upserting finance data: {e}")
+            raise
+        
+        finally:
+            session.close()
+
+    def get_existing_hashes(self, start_date, end_date):
+        """
+        Get set of transaction hashes for a date range (Finances)
+        """
+        session = self.Session()
+        try:
+            result = session.query(FinanceData.transaction_hash)\
+                .filter(FinanceData.transaction_date.between(start_date, end_date))\
                 .all()
             return set(row[0] for row in result)
         finally:

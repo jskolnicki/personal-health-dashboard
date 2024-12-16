@@ -128,6 +128,43 @@ class RizeSummary(Base):
         Index('idx_rize_summaries_date_wday', 'date', 'wday'),  # For combined queries
     )
 
+class FinanceData(Base):
+    __tablename__ = 'finances'
+    
+    transaction_date = Column(Date, nullable=False)
+    description = Column(String(255), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    category = Column(String(100), nullable=False)
+    transaction_type = Column(String(10), nullable=False)
+    gift_type = Column(String(10), nullable=True)
+    person = Column(String(100), nullable=True)
+    notes = Column(String(1000), nullable=True)
+    account_name = Column(String(100), nullable=True)
+    is_date = Column(Boolean, default=False, nullable=False)
+    is_vacation = Column(Boolean, default=False, nullable=False)
+    is_birthday = Column(Boolean, default=False, nullable=False)
+    is_christmas = Column(Boolean, default=False, nullable=False)
+    transaction_hash = Column(String(32), primary_key=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_finances_date', 'transaction_date'),
+        Index('idx_finances_category', 'category'),
+    )
+
+class Vitals(Base):
+    __tablename__ = 'vitals'
+    
+    date = Column(Date, primary_key=True)
+    wake_up_time = Column(DateTime, nullable=True)
+    sleep_minutes = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
+    nap_minutes = Column(Integer, nullable=True)
+    drinks = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
 def get_database_engine():
     username = os.getenv('DB_USERNAME')
     password = os.getenv('DB_PASSWORD')
