@@ -23,6 +23,9 @@ logs/
 .DS_Store
 Thumbs.db
 
+# json files
+*.json
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -96,3 +99,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Google API Authentication
+token.json
+sheets-credentials.json
