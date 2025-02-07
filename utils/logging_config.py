@@ -9,19 +9,22 @@ def setup_logging(log_name='personal_health.log', level=logging.INFO):
 
     # Create a custom logger
     logger = logging.getLogger('personal_health')
-    logger.setLevel(level)
+    
+    # Only configure the logger if it hasn't been configured already
+    if not logger.handlers:
+        logger.setLevel(level)
 
-    # Create handlers
-    file_handler = RotatingFileHandler(log_file, maxBytes=10485760, backupCount=5)  # 10MB per file, keep 5 backups
-    console_handler = logging.StreamHandler()
+        # Create handlers
+        file_handler = RotatingFileHandler(log_file, maxBytes=10485760, backupCount=5)  # 10MB per file, keep 5 backups
+        console_handler = logging.StreamHandler()
 
-    # Create formatters and add it to handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
+        # Create formatters and add it to handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        console_handler.setFormatter(formatter)
 
-    # Add handlers to the logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+        # Add handlers to the logger
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
 
     return logger
