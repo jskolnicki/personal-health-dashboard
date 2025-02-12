@@ -1,11 +1,8 @@
 import os
 import sys
 
-# Define paths
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
-
-# Add project root to Python path
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../..'))
 sys.path.append(PROJECT_ROOT)
 
 from datetime import datetime, timedelta, date
@@ -20,7 +17,7 @@ load_dotenv()
 from app.extensions import db
 from app import create_app
 from database.models import SleepData, NapData
-from data_sources.oura.api import OuraAPI
+from etl.data_sources.oura.api import OuraAPI
 from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
 

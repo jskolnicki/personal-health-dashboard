@@ -6,11 +6,8 @@ from typing import List, Dict
 from dotenv import load_dotenv
 from sqlalchemy import func
 
-# Define paths
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
-
-# Add project root to Python path
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../..'))
 sys.path.append(PROJECT_ROOT)
 
 # Load environment variables
@@ -19,7 +16,7 @@ load_dotenv()
 from app.extensions import db
 from app import create_app
 from database.models import Vitals
-from data_sources.google_sheets.api import GoogleSheetsAPI
+from etl.data_sources.google_sheets.api import GoogleSheetsAPI
 from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
 
@@ -29,11 +26,8 @@ SPREADSHEET_ID = os.getenv('VITALS_SHEET_ID')
 SHEET_NAME = "Vitals"
 RANGE_NAME = f"'{SHEET_NAME}'!A:J"  # Adjust range based on your columns
 
-
 # Add this import at the top with other imports
 from utils.date_utils import get_date_range
-
-# Remove the local get_date_range function
 
 def process_vitals_record(record: Dict) -> Dict:
     """

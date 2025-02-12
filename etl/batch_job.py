@@ -6,15 +6,16 @@ from dotenv import load_dotenv
 
 # Define paths
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(CURRENT_DIR)
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
+sys.path.append(PROJECT_ROOT)
 
 load_dotenv()
 
 from app import create_app
-from data_sources.oura.sleep_data import update_oura_sleep_data
-from data_sources.rize.rize import update_rize_data
-from data_sources.google_sheets.finances import update_finance_data
-from data_sources.google_sheets.vitals import update_vitals_data
+from etl.data_sources.oura.sleep_data import update_oura_sleep_data
+from etl.data_sources.rize.rize import update_rize_data
+from etl.data_sources.google_sheets.finances import update_finance_data
+from etl.data_sources.google_sheets.vitals import update_vitals_data
 from database.models import SleepData, RizeSummary, RizeSession, FinanceData, Vitals
 from utils.logging_config import setup_logging
 from utils.blinkstick import StatusManager

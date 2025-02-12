@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 # Define paths
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../..'))
 
 # Add project root to Python path
 sys.path.append(PROJECT_ROOT)
@@ -20,7 +20,7 @@ load_dotenv()
 from app.extensions import db
 from app import create_app
 from database.models import FinanceData
-from data_sources.google_sheets.api import GoogleSheetsAPI
+from etl.data_sources.google_sheets.api import GoogleSheetsAPI
 from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
 

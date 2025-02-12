@@ -42,17 +42,20 @@ personal-health-dashboard/
 │   ├── static/
 │   └── templates/
 │
-├── data_sources/                 # External data integrations
-│   ├── oura/
-│   │   ├── api.py               # Oura API client
-│   │   └── sleep_data.py        # Sleep data processing
-│   ├── rize/
-│   │   ├── api.py               # Rize API client
-│   │   └── rize.py              # Rize data processing
-│   └── google_sheets/
-│       ├── api.py               # Sheets API client
-│       ├── finances.py          # Finance data processing
-│       └── vitals.py            # Vitals data processing
+├── etl/                          # Data pipeline components
+│   ├── __init__.py
+│   ├── batch_job.py             # Daily data update script
+│   └── data_sources/            # External data integrations
+│       ├── oura/
+│       │   ├── api.py           # Oura API client
+│       │   └── sleep_data.py    # Sleep data processing
+│       ├── rize/
+│       │   ├── api.py           # Rize API client
+│       │   └── rize.py          # Rize data processing
+│       └── google_sheets/
+│           ├── api.py           # Sheets API client
+│           ├── finances.py      # Finance data processing
+│           └── vitals.py        # Vitals data processing
 │
 ├── database/                     # Database components
 │   ├── models.py                # SQLAlchemy models
@@ -65,7 +68,6 @@ personal-health-dashboard/
 │
 ├── .env                         # Environment configuration
 ├── config.py                    # Application configuration
-├── main.py                      # Batch job runner
 └── run.py                       # Flask application entry point
 ```
 
@@ -150,7 +152,7 @@ RIZE_API_KEY=your_rize_api_key
 
 1. Run the data collection job:
 ```bash
-python main.py
+python -m etl.batch_job
 ```
 
 2. Start the Flask application:
