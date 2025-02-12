@@ -11,7 +11,12 @@ def create_app():
     
     db.init_app(app)
     
-    from app.routes import dashboard
-    app.register_blueprint(dashboard.bp)
+    # Register blueprints
+    from app.blueprints.rize.routes import rize_bp
+    app.register_blueprint(rize_bp)
+    
+    # Register home blueprint
+    from app.blueprints.home.routes import home_bp
+    app.register_blueprint(home_bp)
     
     return app

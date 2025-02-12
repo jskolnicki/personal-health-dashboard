@@ -3,9 +3,9 @@ from datetime import datetime, time, timedelta
 from app import db
 from database.models import RizeSession, SleepData
 
-bp = Blueprint('dashboard', __name__)
+rize_bp = Blueprint('rize', __name__, template_folder='templates')
 
-@bp.route('/dashboard', methods=['GET'])
+@rize_bp.route('/rize_dashboard', methods=['GET'])
 def dashboard():
     # Determine date range from query params or default to last 7 days
     local_start_str = request.args.get('start_date', None)
