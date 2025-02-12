@@ -4,6 +4,7 @@ from datetime import datetime, date
 import pandas as pd
 from typing import List, Dict
 from dotenv import load_dotenv
+from sqlalchemy import func
 
 # Define paths
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,15 +16,24 @@ sys.path.append(PROJECT_ROOT)
 # Load environment variables
 load_dotenv()
 
-from utils.logging_config import setup_logging
-from data_sources.google_sheets.api import GoogleSheetsAPI
+from app.extensions import db
+from app import create_app
 from database.models import Vitals
+from data_sources.google_sheets.api import GoogleSheetsAPI
+from utils.date_utils import get_date_range
+from utils.logging_config import setup_logging
 
 logger = setup_logging()
 
 SPREADSHEET_ID = os.getenv('VITALS_SHEET_ID')
 SHEET_NAME = "Vitals"
 RANGE_NAME = f"'{SHEET_NAME}'!A:J"  # Adjust range based on your columns
+
+
+# Add this import at the top with other imports
+from utils.date_utils import get_date_range
+
+# Remove the local get_date_range function
 
 def process_vitals_record(record: Dict) -> Dict:
     """
@@ -35,7 +45,7 @@ def process_vitals_record(record: Dict) -> Dict:
     
     # Process wake up time
     wake_up_time = None
-    if pd.notna(record['Wake Up']) and record['Wake Up'].strip():  # Check if not empty string
+    if pd.notna(record['Wake Up']) and record['Wake Up'].strip():
         time_str = record['Wake Up'].strip()
         try:
             time_obj = datetime.strptime(time_str, '%I:%M:%S %p')
@@ -44,7 +54,7 @@ def process_vitals_record(record: Dict) -> Dict:
             logger.warning(f"Invalid wake up time format for date {record_date}: {time_str}")
             wake_up_time = None
     
-    # Convert other fields, using None for empty/invalid values
+    # Helper functions remain the same
     def parse_float(value):
         try:
             return float(value) if pd.notna(value) and str(value).strip() != '' else None
@@ -74,17 +84,15 @@ def process_vitals_record(record: Dict) -> Dict:
     return processed
 
 def process_vitals_data(raw_data: List[List], start_date, end_date) -> List[Dict]:
-    """
-    Process raw vitals data from Google Sheets into structured records.
-    """
+    """Process raw vitals data from Google Sheets into structured records."""
     if not raw_data:
         return []
     
-    # Create DataFrame from raw data
+    # Create DataFrame and convert dates in one step
     df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+    df['Date'] = pd.to_datetime(df['Date']).dt.date
     
-    # Convert dates and filter by date range
-    df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d').dt.date
+    # Filter by date range
     df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
     
     # Process records
@@ -100,13 +108,11 @@ def process_vitals_data(raw_data: List[List], start_date, end_date) -> List[Dict
     
     return processed_records
 
-def update_vitals_data(db_manager, start_date=None, end_date=None):
-    """
-    Update vitals data in the database.
-    """
+def update_vitals_data(start_date=None, end_date=None):
+    """Update vitals data in the database."""
     try:
         if not (start_date and end_date):
-            start_date, end_date = db_manager.get_update_date_range(Vitals, date_column='date')
+            start_date, end_date = get_date_range(Vitals, 'date')
             
         logger.debug(f"Fetching vitals data for period {start_date} to {end_date}")
         
@@ -123,48 +129,43 @@ def update_vitals_data(db_manager, start_date=None, end_date=None):
         logger.debug(f"Upserting {len(processed_records)} vitals records")
         
         # Upsert records
-        session = db_manager.Session()
         try:
             for record in processed_records:
-                existing = session.query(Vitals).filter_by(date=record['date']).first()
+                existing = Vitals.query.filter_by(date=record['date']).first()
                 if existing:
                     for key, value in record.items():
                         setattr(existing, key, value)
                 else:
                     new_record = Vitals(**record)
-                    session.add(new_record)
+                    db.session.add(new_record)
             
-            session.commit()
+            db.session.commit()
             logger.info(f"Vitals data upserted: {len(processed_records)} records")
             
         except Exception as e:
-            session.rollback()
+            db.session.rollback()
             logger.error(f"Error upserting vitals records: {str(e)}")
             raise
-        finally:
-            session.close()
 
     except Exception as e:
         logger.error(f"An error occurred while processing vitals data: {str(e)}")
         raise
 
 if __name__ == "__main__":
-    from database.db_manager import DatabaseManager
-    from database.models import get_database_engine
-    
-    engine = get_database_engine()
-    db_manager = DatabaseManager(engine)
-    
-    # Setting start_date and end_date to None updates from the last updated date in the database
-    start_date = None
-    end_date = None
-
-    # start_date = date(2024, 1, 1) # for custom date range
-    # end_date = date(2024, 12, 31) # for custom date range
-    
-    try:
-        update_vitals_data(db_manager, start_date, end_date)
-        print("Vitals data update completed successfully.")
-    except Exception as e:
-        print(f"Failed to update vitals data: {e}")
-        sys.exit(1)
+   app = create_app()
+   
+   with app.app_context():
+       # Option 1: Use most recent data
+       # start_date = None
+       # end_date = None
+       
+       # Option 2: Use specific date range
+       start_date = date(2025, 1, 1)
+       end_date = date(2025, 12, 31)
+       
+       try:
+           update_vitals_data(start_date, end_date)
+           print("Vitals data update completed successfully.")
+       except Exception as e:
+           print(f"Failed to update vitals data: {e}")
+           sys.exit(1)

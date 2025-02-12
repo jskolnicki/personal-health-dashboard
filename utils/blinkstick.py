@@ -1,63 +1,60 @@
+# utils/status_manager.py
 import time
+from threading import Thread, Event
 from blinkstick import blinkstick
+from typing import Optional
 
-def color_to_rgb(color):
-    color_map = {
-        "red": (255, 0, 0),
-        "green": (0, 255, 0),
-        "blue": (0, 0, 255),
-        "yellow": (255, 255, 0),
-        "purple": (128, 0, 128),
-        "cyan": (0, 255, 255),
-        "white": (255, 255, 255),
-    }
-    return color_map.get(color.lower(), (255, 255, 255))  # Default to white if color not found
+class StatusManager:
+    def __init__(self):
+        self.current_process = None
+        self.stop_event = Event()
+        self.blink_thread: Optional[Thread] = None
+        # Initialize BlinkStick once
+        self.bstick = blinkstick.find_first()
+        if self.bstick is None:
+            print("No BlinkStick found - status indicators will be disabled")
 
-def set_color(color, brightness=100):
-    bstick = blinkstick.find_first()
-    if bstick is None:
-        print("No BlinkStick found")
-        return
+    def _blink_processing(self):
+        if not self.bstick:
+            return
+            
+        while not self.stop_event.is_set():
+            self.bstick.set_color(red=0, green=0, blue=255)  # Blue
+            time.sleep(0.5)
+            self.bstick.turn_off()
+            time.sleep(0.5)
     
-    r, g, b = color_to_rgb(color)
+    def start_process(self, process_name: str):
+        """Start indicating a process is running"""
+        self.current_process = process_name
+        self.stop_event.clear()
+        
+        if self.blink_thread and self.blink_thread.is_alive():
+            self.stop_event.set()
+            self.blink_thread.join()
+        
+        self.blink_thread = Thread(target=self._blink_processing)
+        self.blink_thread.start()
+        
+    def end_process(self, success: bool):
+        """End current process with success/failure indication"""
+        self.stop_event.set()
+        if self.blink_thread:
+            self.blink_thread.join()
+        
+        if self.bstick:
+            if success:
+                self.bstick.set_color(red=0, green=255, blue=0)  # Green
+            else:
+                self.bstick.set_color(red=255, green=0, blue=0)  # Red
+            time.sleep(2)
+            self.bstick.turn_off()
     
-    # Apply brightness
-    r = int(r * brightness / 100)
-    g = int(g * brightness / 100)
-    b = int(b * brightness / 100)
-    
-    bstick.set_color(red=r, green=g, blue=b)
-
-def indicate_status(status, persist=False):
-    if status == "success":
-        set_color("green")
-    elif status == "error":
-        set_color("red")
-    elif status == "warning":
-        set_color("yellow")
-    elif status == "processing":
-        blink_processing()
-    else:
-        print(f"Unknown status: {status}")
-    
-    if not persist:
-        time.sleep(5)
-        turn_off()
-
-def blink_processing(duration=10):
-    bstick = blinkstick.find_first()
-    if bstick is None:
-        print("No BlinkStick found")
-        return
-    
-    end_time = time.time() + duration
-    while time.time() < end_time:
-        set_color("blue")
-        time.sleep(0.5)
-        turn_off()
-        time.sleep(0.5)
-
-def turn_off():
-    bstick = blinkstick.find_first()
-    if bstick:
-        bstick.turn_off()
+    def cleanup(self):
+        """Clean up any running processes"""
+        self.stop_event.set()
+        if self.blink_thread:
+            self.blink_thread.join()
+        
+        if self.bstick:
+            self.bstick.turn_off()

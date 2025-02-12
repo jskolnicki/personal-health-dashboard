@@ -5,7 +5,7 @@ import pandas as pd
 import hashlib
 from typing import List, Dict
 from dotenv import load_dotenv
-
+from sqlalchemy import func
 
 # Define paths
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,9 +17,12 @@ sys.path.append(PROJECT_ROOT)
 # Load environment variables
 load_dotenv()
 
-from utils.logging_config import setup_logging
-from data_sources.google_sheets.api import GoogleSheetsAPI
+from app.extensions import db
+from app import create_app
 from database.models import FinanceData
+from data_sources.google_sheets.api import GoogleSheetsAPI
+from utils.date_utils import get_date_range
+from utils.logging_config import setup_logging
 
 logger = setup_logging()
 
@@ -27,30 +30,13 @@ SPREADSHEET_ID = os.getenv('FINANCES_SHEET_ID')
 SHEET_NAME = "Transactions"
 RANGE_NAME = f"'{SHEET_NAME}'!A:N"  # Adjust range based on your columns
 
-
-
-###############################################################################
-# Option 1: Dynamic dates
-end_date = datetime.now().date()
-start_date = (end_date.replace(day=1) - pd.DateOffset(months=1)).date()
-
-# # Option 2: Specific dates
-# start_date = datetime(2024, 3, 29).date()
-# end_date = datetime(2024, 3, 29).date()
-
-###############################################################################
-
 def generate_transaction_hash(record: Dict) -> str:
-    """
-    Generate a unique hash for a transaction based on date, description, and amount.
-    """
+    """Generate a unique hash for a transaction based on date, description, and amount."""
     hash_string = f"{record['transaction_date']}{record['description']}{record['amount']}"
     return hashlib.md5(hash_string.encode()).hexdigest()
 
 def process_finance_record(record: Dict) -> Dict:
-    """
-    Process a single finance record from the raw data.
-    """
+    """Process a single finance record from the raw data."""
     # Convert date string to date object
     transaction_date = pd.to_datetime(record['Date']).date()
     
@@ -96,9 +82,7 @@ def process_finance_record(record: Dict) -> Dict:
     return processed
 
 def process_finance_data(raw_data: List[List], start_date, end_date) -> List[Dict]:
-    """
-    Process raw finance data from Google Sheets into structured records.
-    """
+    """Process raw finance data from Google Sheets into structured records."""
     if not raw_data:
         return []
     
@@ -126,14 +110,19 @@ def process_finance_data(raw_data: List[List], start_date, end_date) -> List[Dic
     
     return processed_records
 
-def update_finance_data(db_manager, start_date=None, end_date=None):
-    """
-    Update finance data in the database.
-    If no date range is provided, it will determine the range based on the most recent record.
-    """
+def get_existing_hashes(start_date, end_date) -> set:
+    """Get set of transaction hashes for a date range"""
+    result = FinanceData.query\
+        .filter(FinanceData.transaction_date.between(start_date, end_date))\
+        .with_entities(FinanceData.transaction_hash)\
+        .all()
+    return set(row[0] for row in result)
+
+def update_finance_data(start_date=None, end_date=None):
+    """Update finance data in the database."""
     try:
         if not (start_date and end_date):
-            start_date, end_date = db_manager.get_update_date_range(FinanceData, date_column='transaction_date')
+            start_date, end_date = get_date_range(FinanceData, 'transaction_date')
             
         logger.debug(f"Fetching finance data for period {start_date} to {end_date}")
         
@@ -150,69 +139,62 @@ def update_finance_data(db_manager, start_date=None, end_date=None):
         logger.debug(f"Upserting {len(processed_records)} finance records")
         
         # Get existing hashes for this date range
-        existing_hashes = db_manager.get_existing_hashes(start_date, end_date)
+        existing_hashes = get_existing_hashes(start_date, end_date)
         processed_hashes = set()
         
-        # Upsert records using DatabaseManager's upsert method
-        finance_records = []
-        for record in processed_records:
-            try:
-                finance_records.append(record)
+        # Upsert records
+        try:
+            for record in processed_records:
                 processed_hashes.add(record['transaction_hash'])
-            except Exception as e:
-                logger.error(f"Error processing record {record}: {str(e)}")
-                continue
-        
-        # Batch upsert all records
-        if finance_records:
-            try:
-                db_manager.upsert_finance_data(finance_records)
-            except Exception as e:
-                logger.error(f"Error upserting finance records: {str(e)}")
-                raise
-        
-        # Delete records that no longer exist in the spreadsheet
-        hashes_to_delete = existing_hashes - processed_hashes
-        if hashes_to_delete:
-            logger.info(f"Deleting {len(hashes_to_delete)} removed records")
-            session = db_manager.Session()
-            try:
-                session.query(FinanceData)\
+                existing = FinanceData.query.filter_by(
+                    transaction_hash=record['transaction_hash']
+                ).first()
+                
+                if existing:
+                    for key, value in record.items():
+                        if key not in ['id', 'created_at']:
+                            setattr(existing, key, value)
+                else:
+                    new_transaction = FinanceData(**record)
+                    db.session.add(new_transaction)
+            
+            # Delete records that no longer exist in the spreadsheet
+            hashes_to_delete = existing_hashes - processed_hashes
+            if hashes_to_delete:
+                logger.info(f"Deleting {len(hashes_to_delete)} removed records")
+                FinanceData.query\
                     .filter(
                         FinanceData.transaction_hash.in_(hashes_to_delete),
                         FinanceData.transaction_date.between(start_date, end_date)
                     ).delete(synchronize_session=False)
-                session.commit()
-            except Exception as e:
-                session.rollback()
-                logger.error(f"Error deleting records: {str(e)}")
-                raise
-            finally:
-                session.close()
-        
-        logger.info(f"Finance data upserted: {len(processed_records)} records")
+            
+            db.session.commit()
+            logger.info(f"Finance data upserted: {len(processed_records)} records")
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error managing finance records: {str(e)}")
+            raise
 
     except Exception as e:
         logger.error(f"An error occurred while processing finance data: {str(e)}")
         raise
 
 if __name__ == "__main__":
-    from database.db_manager import DatabaseManager
-    from database.models import get_database_engine
+    app = create_app()
     
-    engine = get_database_engine()
-    db_manager = DatabaseManager(engine)
-
-    # Setting start_date and end_date to None updates from the last updated date in the database
-    start_date = None
-    end_date = None
-
-    # start_date = date(2024, 1, 1) # for custom date range
-    # end_date = date(2024, 12, 31) # for custom date range
-    
-    try:
-        update_finance_data(db_manager, start_date, end_date)
-        print("Finance data update completed successfully.")
-    except Exception as e:
-        print(f"Failed to update finance data: {e}")
-        sys.exit(1)
+    with app.app_context():
+        # Option 1: Use most recent data
+        # start_date = None
+        # end_date = None
+        
+        # Option 2: Use specific date range
+        start_date = date(2025, 1, 1)
+        end_date = date(2025, 12, 31)
+        
+        try:
+            update_finance_data(start_date, end_date)
+            print("Finance data update completed successfully.")
+        except Exception as e:
+            print(f"Failed to update finance data: {e}")
+            sys.exit(1)

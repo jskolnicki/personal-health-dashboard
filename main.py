@@ -1,17 +1,23 @@
+import os
+import sys
 from datetime import date, timedelta
 from typing import Optional, Dict, Tuple, Callable
 from dotenv import load_dotenv
 
+# Define paths
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(CURRENT_DIR)
+
 load_dotenv()
 
+from app import create_app
 from data_sources.oura.sleep_data import update_oura_sleep_data
 from data_sources.rize.rize import update_rize_data
 from data_sources.google_sheets.finances import update_finance_data
 from data_sources.google_sheets.vitals import update_vitals_data
-from database.db_manager import DatabaseManager
-from database.models import get_database_engine, SleepData, RizeSummary, RizeSession, FinanceData, Vitals
+from database.models import SleepData, RizeSummary, RizeSession, FinanceData, Vitals
 from utils.logging_config import setup_logging
-from utils.blinkstick import indicate_status, turn_off, set_color
+from utils.blinkstick import StatusManager
 
 logger = setup_logging()
 
@@ -30,17 +36,19 @@ class DataSource:
         self.date_column = date_column
         self.custom_dates = custom_dates
 
-def main(global_date_range: Optional[Tuple[date, date]] = None):
+def main(global_date_range: Optional[Tuple[date, date]] = None) -> bool:
     """
     Run data updates for all sources.
     
     Args:
         global_date_range: Optional tuple of (start_date, end_date) to apply to all sources
+    
+    Returns:
+        bool: True if all updates succeeded, False if any failed
     """
-    turn_off()
-
-    engine = get_database_engine()
-    db_manager = DatabaseManager(engine)
+    app = create_app()
+    status_manager = StatusManager()  # Initialize once
+    success = True
 
     # Define data sources with their configurations
     data_sources = [
@@ -49,55 +57,68 @@ def main(global_date_range: Optional[Tuple[date, date]] = None):
             update_func=update_oura_sleep_data,
             model_class=SleepData,
             date_column='date',
-            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Oura
         ),
         DataSource(
             name="Rize",
             update_func=update_rize_data,
-            model_class=RizeSummary,  # Using RizeSummary as the primary model for date tracking
+            model_class=RizeSummary,
             date_column='date',
-            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Rize
         ),
         DataSource(
             name="Finances",
             update_func=update_finance_data,
             model_class=FinanceData,
             date_column='transaction_date',
-            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Finances
         ),
         DataSource(
             name="Vitals",
             update_func=update_vitals_data,
             model_class=Vitals,
             date_column='date',
-            # custom_dates=(date(2024, 1, 1), date(2024, 12, 31))  # Uncomment to set custom dates for just Vitals
         )
     ]
 
-    for source in data_sources:
-        try:
-            indicate_status("processing")
-            
-            # Determine which dates to use (priority: source custom dates > global dates > None)
-            dates_to_use = source.custom_dates or global_date_range or (None, None)
-            start_date, end_date = dates_to_use
-            
-            if start_date and end_date:
-                logger.debug(f"Processing {source.name} with custom date range: {start_date} to {end_date}")
-            else:
-                logger.debug(f"Processing {source.name} using most recent data")
-            
-            source.update_func(db_manager, start_date, end_date)
-            indicate_status("success", persist=True)
-            
-        except Exception as e:
-            print(f"Error occurred in {source.name} update: {str(e)}")
-            indicate_status("error", persist=True)
-            set_color("green", brightness=20)
+    with app.app_context():
+        for source in data_sources:
+            try:
+                status_manager.start_process(source.name)
+                
+                dates_to_use = source.custom_dates or global_date_range or (None, None)
+                start_date, end_date = dates_to_use
+                
+                if start_date and end_date:
+                    logger.debug(f"Processing {source.name} with custom date range: {start_date} to {end_date}")
+                else:
+                    logger.debug(f"Processing {source.name} using most recent data")
+                
+                source.update_func(start_date, end_date)
+                status_manager.end_process(success=True)
+                
+            except Exception as e:
+                success = False
+                logger.error(f"Error occurred in {source.name} update: {str(e)}")
+                status_manager.end_process(success=False)
+                
+    status_manager.cleanup()
+    return success
 
 if __name__ == "__main__":
-    # Option 1: Use most recent data for all sources (default)
-    main()
+    try:
+        # Option 1: Use most recent data for all sources (default)
+        start_date = None
+        end_date = None
 
-    # Option 2: Set global date range for all sources
-    # main((date(2024, 1, 1), date(2024, 12, 31)))
+        # Option 2: Set global date range for all sources
+        # start_date = date(2024, 1, 1)
+        # end_date = date(2025, 1, 1)
+
+        success = main((start_date, end_date))
+        
+        if success:
+            print("All data updates completed successfully.")
+        else:
+            print("Some data updates failed. Check the logs for details.")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Failed to complete all data updates: {e}")
+        sys.exit(1)
