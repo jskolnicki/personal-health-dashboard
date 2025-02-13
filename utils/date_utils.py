@@ -18,20 +18,25 @@ DEFAULT_START_DATES: Dict[str, date] = {
     'SleepData': date(2024, 6, 9)
 }
 
-def get_date_range(model_class: Type, date_column: str = 'date') -> Tuple[date, date]:
+def get_date_range(model_class: Type, date_column: str = 'date', user_id: Optional[int] = None) -> Tuple[date, date]:
     """
     Get the date range from the most recent record to today.
     
     Args:
         model_class: SQLAlchemy model class
         date_column: Name of the date column to query
+        user_id: Optional user ID to filter by
         
     Returns:
         Tuple[date, date]: (start_date, end_date)
     """
-    last_record_date = db.session.query(
-        func.max(getattr(model_class, date_column))
-    ).scalar()
+    query = db.session.query(func.max(getattr(model_class, date_column)))
+    
+    # Add user filter if user_id is provided
+    if user_id is not None and hasattr(model_class, 'user_id'):
+        query = query.filter(model_class.user_id == user_id)
+    
+    last_record_date = query.scalar()
     
     end_date = date.today() + timedelta(days=1)  # Include today's data
     

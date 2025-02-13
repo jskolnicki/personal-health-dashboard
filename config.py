@@ -5,6 +5,10 @@ load_dotenv()
 
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev')
+
+    # SESSION_COOKIE_SECURE = True
+    # REMEMBER_COOKIE_SECURE = True
+
     SQLALCHEMY_DATABASE_URI = (
         f"mysql+mysqlconnector://{os.getenv('DB_USERNAME')}:"
         f"{os.getenv('DB_PASSWORD')}@"

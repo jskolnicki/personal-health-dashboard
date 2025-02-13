@@ -1,15 +1,29 @@
-import os
 import requests
 from datetime import date, timedelta
 
 class OuraAPI:
     BASE_URL = "https://api.ouraring.com/v2/usercollection"
 
-    def __init__(self):
-        self.access_token = os.environ['OURA_ACCESS_TOKEN']
-        self.headers = {"Authorization": f"Bearer {self.access_token}"}
+    def __init__(self, access_token=None):
+        """
+        Initialize the Oura API client.
+        
+        Args:
+            access_token (str, optional): Oura API access token.
+                If not provided, it can be set later using set_access_token().
+        """
+        self.access_token = access_token
+        self.headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
+
+    def set_access_token(self, access_token):
+        """Set or update the access token."""
+        self.access_token = access_token
+        self.headers = {"Authorization": f"Bearer {access_token}"}
 
     def get_data(self, endpoint, start_date, end_date=None, **kwargs):
+        if not self.access_token:
+            raise ValueError("Access token not set. Please set it using set_access_token()")
+            
         params = {
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat() if end_date else start_date.isoformat()

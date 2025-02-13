@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+<h1>Welcome!</h1>
+<br>
+
+<h2>Main Pages</h2>
+    <ul>
+        <h3><a href="{{ url_for('rize.load_rize_dashboard') }}">Rize Dashboard</a></h3>
+    </ul>
+
+{% endblock %}

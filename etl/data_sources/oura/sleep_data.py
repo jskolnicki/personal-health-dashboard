@@ -1,5 +1,6 @@
 import os
 import sys
+import requests
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../..'))
@@ -16,7 +17,7 @@ load_dotenv()
 
 from app.extensions import db
 from app import create_app
-from database.models import SleepData, NapData
+from database.models import SleepData, NapData, UserIntegrations
 from etl.data_sources.oura.api import OuraAPI
 from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
@@ -161,76 +162,97 @@ def process_oura_data(oura_data: List[Dict], user_id: int) -> Tuple[List[Dict], 
 
 def update_oura_sleep_data(start_date=None, end_date=None):
     """
-    Update Oura sleep data in the database.
-    If no date range is provided, it will determine the range based on the most recent record.
+    Update Oura sleep data in the database for all users with active Oura integrations.
+    If no date range is provided, it will determine the range based on each user's most recent record.
     """
     try:
-        if not (start_date and end_date):
-            start_date, end_date = get_date_range(SleepData, 'date')
-            
-        logger.debug(f"Updating Oura sleep data from {start_date} to {end_date}")
-
-        user_id = 1  # TODO: Implement logic to retrieve the User ID
-
-        logger.debug(f"Fetching sleep data for user {user_id} from {start_date} to {end_date}")
+        integrations = UserIntegrations.query\
+            .filter_by(integration_type='oura', status='active')\
+            .all()
         
-        oura_api = OuraAPI()
-        raw_sleep_data = oura_api.get_sleep_data(start_date, end_date)
-        
-        if not raw_sleep_data or 'data' not in raw_sleep_data:
-            logger.warning("No sleep data available or invalid response from Oura API.")
+        if not integrations:
+            logger.info("No active Oura integrations found")
             return
         
-        processed_sleep_data, processed_nap_data = process_oura_data(raw_sleep_data['data'], user_id)
-        
-        logger.debug(f"Inserting {len(processed_sleep_data)} sleep records and {len(processed_nap_data)} nap records")
-        
-        try:
-            # Upsert sleep data
-            for sleep_record in processed_sleep_data:
-                # Ensure date is a datetime.date object
-                if isinstance(sleep_record['date'], str):
-                    sleep_record['date'] = date.fromisoformat(sleep_record['date'])
+        for integration in integrations:
+            try:
+                user = integration.user
                 
-                existing = SleepData.query.filter_by(
-                    user_id=sleep_record['user_id'],
-                    date=sleep_record['date']
-                ).first()
+                # Get user-specific date range if not provided
+                user_start_date, user_end_date = start_date, end_date
+                if not (user_start_date and user_end_date):
+                    # Get date range from utility function
+                    user_start_date, user_end_date = get_date_range(SleepData, 'date', user_id=user.user_id)
+                    
+                    # Always include the most recent day's data for potential updates
+                    if user_start_date:
+                        user_start_date = user_start_date - timedelta(days=1)
                 
-                if existing:
-                    for key, value in sleep_record.items():
-                        setattr(existing, key, value)
-                else:
-                    new_sleep = SleepData(**sleep_record)
-                    db.session.add(new_sleep)
-            
-            # Upsert nap data
-            for nap_record in processed_nap_data:
-                # Ensure date is a datetime.date object
-                if isinstance(nap_record['date'], str):
-                    nap_record['date'] = date.fromisoformat(nap_record['date'])
+                # Get credentials and initialize API
+                credentials = integration.get_credentials()
+                oura_api = OuraAPI(access_token=credentials.get('api_key'))
                 
-                existing = NapData.query.filter_by(
-                    user_id=nap_record['user_id'],
-                    date=nap_record['date'],
-                    bedtime_start=nap_record['bedtime_start']
-                ).first()
+                try:
+                    # Fetch sleep data
+                    raw_sleep_data = oura_api.get_sleep_data(user_start_date, user_end_date)
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Failed to process data for {user.username}: API error - {str(e)}")
+                    integration.update_sync_status(success=False)
+                    continue
                 
-                if existing:
-                    for key, value in nap_record.items():
-                        setattr(existing, key, value)
-                else:
-                    new_nap = NapData(**nap_record)
-                    db.session.add(new_nap)
-            
-            db.session.commit()
-            logger.info(f"Oura data upserted: {len(processed_sleep_data)} sleep records, {len(processed_nap_data)} nap records.")
-
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error upserting data: {str(e)}")
-            raise
-
+                if not raw_sleep_data or 'data' not in raw_sleep_data:
+                    logger.info(f"No new sleep data available for {user.username}")
+                    integration.update_sync_status(success=True)
+                    continue
+                
+                # Process the data
+                processed_sleep_data, processed_nap_data = process_oura_data(raw_sleep_data['data'], user.user_id)
+                
+                # Upsert sleep data
+                for sleep_record in processed_sleep_data:
+                    if isinstance(sleep_record['date'], str):
+                        sleep_record['date'] = date.fromisoformat(sleep_record['date'])
+                    
+                    existing = SleepData.query.filter_by(
+                        user_id=sleep_record['user_id'],
+                        date=sleep_record['date']
+                    ).first()
+                    
+                    if existing:
+                        for key, value in sleep_record.items():
+                            setattr(existing, key, value)
+                    else:
+                        new_sleep = SleepData(**sleep_record)
+                        db.session.add(new_sleep)
+                
+                # Upsert nap data
+                for nap_record in processed_nap_data:
+                    if isinstance(nap_record['date'], str):
+                        nap_record['date'] = date.fromisoformat(nap_record['date'])
+                    
+                    existing = NapData.query.filter_by(
+                        user_id=nap_record['user_id'],
+                        date=nap_record['date'],
+                        bedtime_start=nap_record['bedtime_start']
+                    ).first()
+                    
+                    if existing:
+                        for key, value in nap_record.items():
+                            setattr(existing, key, value)
+                    else:
+                        new_nap = NapData(**nap_record)
+                        db.session.add(new_nap)
+                
+                db.session.commit()
+                integration.update_sync_status(success=True)
+                logger.info(f"Successfully processed {len(processed_sleep_data)} sleep records and {len(processed_nap_data)} nap records for {user.username}")
+                
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Failed to process data for {user.username if 'user' in locals() else integration.user_id}: {str(e)}")
+                integration.update_sync_status(success=False)
+                continue
+                
     except Exception as e:
         logger.error(f"An error occurred while processing Oura sleep data: {str(e)}")
         raise
