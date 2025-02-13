@@ -1,22 +1,22 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from app.config import Config
-from database.models import RizeSession
+from app.extensions import db
+from config import Config
 
-db = SQLAlchemy()
-
-def create_app():
+def create_app(config_object=Config):
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_object)
     
+    # Initialize extensions
     db.init_app(app)
     
-    # Register blueprints
+    # Import and register blueprints
+    from app.blueprints.home.routes import home_bp
+    app.register_blueprint(home_bp)
+    
     from app.blueprints.rize.routes import rize_bp
     app.register_blueprint(rize_bp)
     
-    # Register home blueprint
-    from app.blueprints.home.routes import home_bp
-    app.register_blueprint(home_bp)
+    # from app.blueprints.journal.routes import journal_bp
+    # app.register_blueprint(journal_bp)
     
     return app

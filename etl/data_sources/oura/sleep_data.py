@@ -1,23 +1,24 @@
 import os
 import sys
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../..'))
+sys.path.append(PROJECT_ROOT)
+
 from datetime import datetime, timedelta, date
 from dateutil import parser
 from typing import List, Dict, Tuple
 from dotenv import load_dotenv
+from sqlalchemy import func
+from flask import current_app
 
-# Define paths
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
+load_dotenv()
 
-# Add project root to Python path
-sys.path.append(PROJECT_ROOT)
-
-from database.models import SleepData
-
-# Load environment variables from the project root's .env file
-load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
-
-from data_sources.oura.api import OuraAPI
+from app.extensions import db
+from app import create_app
+from database.models import SleepData, NapData
+from etl.data_sources.oura.api import OuraAPI
+from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
 
 logger = setup_logging()
@@ -59,6 +60,7 @@ def categorize_sleep_sessions(sleep_sessions: List[Dict]) -> Tuple[Dict, List[Di
     return main_sleep, naps
 
 def calculate_sleep_metrics(sleep_data: Dict) -> Dict:
+    # This function remains unchanged as it doesn't involve database operations
     bedtime_start = parser.isoparse(sleep_data['bedtime_start'])
     bedtime_end = parser.isoparse(sleep_data['bedtime_end'])
     sleep_phases = sleep_data['sleep_phase_5_min']
@@ -157,14 +159,14 @@ def process_oura_data(oura_data: List[Dict], user_id: int) -> Tuple[List[Dict], 
 
     return sleep_data, nap_data
 
-def update_oura_sleep_data(db_manager, start_date, end_date):
+def update_oura_sleep_data(start_date=None, end_date=None):
     """
     Update Oura sleep data in the database.
     If no date range is provided, it will determine the range based on the most recent record.
     """
     try:
         if not (start_date and end_date):
-            start_date, end_date = db_manager.get_update_date_range(SleepData)
+            start_date, end_date = get_date_range(SleepData, 'date')
             
         logger.debug(f"Updating Oura sleep data from {start_date} to {end_date}")
 
@@ -183,32 +185,72 @@ def update_oura_sleep_data(db_manager, start_date, end_date):
         
         logger.debug(f"Inserting {len(processed_sleep_data)} sleep records and {len(processed_nap_data)} nap records")
         
-        db_manager.upsert_sleep_data(processed_sleep_data)
-        db_manager.upsert_nap_data(processed_nap_data)
-        
-        logger.info(f"Oura data upserted: {len(processed_sleep_data)} sleep records, {len(processed_nap_data)} nap records.")
+        try:
+            # Upsert sleep data
+            for sleep_record in processed_sleep_data:
+                # Ensure date is a datetime.date object
+                if isinstance(sleep_record['date'], str):
+                    sleep_record['date'] = date.fromisoformat(sleep_record['date'])
+                
+                existing = SleepData.query.filter_by(
+                    user_id=sleep_record['user_id'],
+                    date=sleep_record['date']
+                ).first()
+                
+                if existing:
+                    for key, value in sleep_record.items():
+                        setattr(existing, key, value)
+                else:
+                    new_sleep = SleepData(**sleep_record)
+                    db.session.add(new_sleep)
+            
+            # Upsert nap data
+            for nap_record in processed_nap_data:
+                # Ensure date is a datetime.date object
+                if isinstance(nap_record['date'], str):
+                    nap_record['date'] = date.fromisoformat(nap_record['date'])
+                
+                existing = NapData.query.filter_by(
+                    user_id=nap_record['user_id'],
+                    date=nap_record['date'],
+                    bedtime_start=nap_record['bedtime_start']
+                ).first()
+                
+                if existing:
+                    for key, value in nap_record.items():
+                        setattr(existing, key, value)
+                else:
+                    new_nap = NapData(**nap_record)
+                    db.session.add(new_nap)
+            
+            db.session.commit()
+            logger.info(f"Oura data upserted: {len(processed_sleep_data)} sleep records, {len(processed_nap_data)} nap records.")
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error upserting data: {str(e)}")
+            raise
 
     except Exception as e:
         logger.error(f"An error occurred while processing Oura sleep data: {str(e)}")
         raise
 
 if __name__ == "__main__":
-    from database.db_manager import DatabaseManager
-    from database.models import get_database_engine
+    # Create Flask app context
+    app = create_app()
     
-    engine = get_database_engine()
-    db_manager = DatabaseManager(engine)
-
-    # Setting start_date and end_date to None updates from the last updated date in the database
-    start_date = None
-    end_date = None
-
-    # start_date = date(2024, 11, 19) # for custom date range
-    # end_date = date(2024, 12, 10) # for custom date range
-    
-    try:
-        update_oura_sleep_data(db_manager, start_date, end_date)
-        print("Oura sleep data update completed successfully.")
-    except Exception as e:
-        print(f"Failed to update Oura sleep data: {e}")
-        sys.exit(1)
+    with app.app_context():
+        # Option 1: Use most recent data
+        start_date = None
+        end_date = None
+        
+        # Option 2: Use specific date range
+        # start_date = date(2024, 1, 1)
+        # end_date = date(2024, 12, 31)
+        
+        try:
+            update_oura_sleep_data(start_date, end_date)
+            print("Oura sleep data update completed successfully.")
+        except Exception as e:
+            print(f"Failed to update Oura sleep data: {e}")
+            exit(1)
