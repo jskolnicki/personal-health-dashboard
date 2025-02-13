@@ -78,7 +78,7 @@ class NapData(db.Model):
         db.UniqueConstraint('user_id', 'date', 'bedtime_start', name='uix_user_date_bedtime'),
     )
 
-class RizeSession(db.Model):
+class RizeSessions(db.Model):
     __tablename__ = 'rize_sessions'
     
     session_id = db.Column(db.String(50), primary_key=True)
@@ -104,7 +104,7 @@ class RizeSession(db.Model):
         Index('idx_rize_sessions_timespan', 'start_time', 'end_time')
     )
 
-class RizeSummary(db.Model):
+class RizeSummaries(db.Model):
     __tablename__ = 'rize_summaries'
     
     date = db.Column(db.Date, primary_key=True)
@@ -128,7 +128,7 @@ class RizeSummary(db.Model):
         Index('idx_rize_summaries_date_wday', 'date', 'wday'),
     )
 
-class FinanceData(db.Model):
+class Finances(db.Model):
     __tablename__ = 'finances'
     
     transaction_hash = db.Column(db.String(32), primary_key=True)

@@ -16,7 +16,7 @@ load_dotenv()
 
 from app.extensions import db
 from app import create_app
-from database.models import RizeSession, RizeSummary
+from database.models import RizeSessions, RizeSummaries
 from etl.data_sources.rize.api import RizeAPI
 from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
@@ -63,16 +63,16 @@ def process_summary_record(record: Dict) -> Dict:
 
 def get_existing_session_ids(start_date: date, end_date: date) -> set:
     """Get set of session IDs for a date range"""
-    result = RizeSession.query\
-        .filter(RizeSession.date.between(start_date, end_date))\
-        .with_entities(RizeSession.session_id)\
+    result = RizeSessions.query\
+        .filter(RizeSessions.date.between(start_date, end_date))\
+        .with_entities(RizeSessions.session_id)\
         .all()
     return set(row[0] for row in result)
 
 def update_rize_sessions(start_date: Optional[date] = None, end_date: Optional[date] = None):
     """Update just the Rize session data"""
     if not (start_date and end_date):
-        start_date, end_date = get_date_range(RizeSession, 'date')
+        start_date, end_date = get_date_range(RizeSessions, 'date')
     
     logger.debug(f"Fetching Rize sessions for period {start_date} to {end_date}")
     
@@ -104,9 +104,9 @@ def update_rize_sessions(start_date: Optional[date] = None, end_date: Optional[d
             ids_to_delete = existing_ids - session_ids
             
             if ids_to_delete:
-                to_delete = RizeSession.query\
-                    .filter(RizeSession.session_id.in_(ids_to_delete))\
-                    .filter(RizeSession.date.between(start_date, end_date))\
+                to_delete = RizeSessions.query\
+                    .filter(RizeSessions.session_id.in_(ids_to_delete))\
+                    .filter(RizeSessions.date.between(start_date, end_date))\
                     .all()
                 
                 if to_delete:
@@ -117,9 +117,9 @@ def update_rize_sessions(start_date: Optional[date] = None, end_date: Optional[d
                                   f"(start: {session_to_delete.start_time}, "
                                   f"end: {session_to_delete.end_time})")
                     
-                    RizeSession.query\
-                        .filter(RizeSession.session_id.in_(ids_to_delete))\
-                        .filter(RizeSession.date.between(start_date, end_date))\
+                    RizeSessions.query\
+                        .filter(RizeSessions.session_id.in_(ids_to_delete))\
+                        .filter(RizeSessions.date.between(start_date, end_date))\
                         .delete(synchronize_session=False)
                     db.session.commit()
         except Exception as e:
@@ -130,13 +130,13 @@ def update_rize_sessions(start_date: Optional[date] = None, end_date: Optional[d
     if processed_sessions:
         try:
             for session in processed_sessions:
-                existing = RizeSession.query.filter_by(session_id=session['session_id']).first()
+                existing = RizeSessions.query.filter_by(session_id=session['session_id']).first()
                 if existing:
                     for key, value in session.items():
                         if key != 'created_at':
                             setattr(existing, key, value)
                 else:
-                    new_session = RizeSession(**session)
+                    new_session = RizeSessions(**session)
                     db.session.add(new_session)
             db.session.commit()
         except Exception as e:
@@ -149,7 +149,7 @@ def update_rize_sessions(start_date: Optional[date] = None, end_date: Optional[d
 def update_rize_summaries(start_date: Optional[date] = None, end_date: Optional[date] = None):
     """Update just the Rize summary data"""
     if not (start_date and end_date):
-        start_date, end_date = get_date_range(RizeSummary, 'date')
+        start_date, end_date = get_date_range(RizeSummaries, 'date')
         
     start_date = start_date - timedelta(days=1)  # rize data can update as the day goes on
     
@@ -171,12 +171,12 @@ def update_rize_summaries(start_date: Optional[date] = None, end_date: Optional[
     if summary_records:
         try:
             for summary in summary_records:
-                existing = RizeSummary.query.filter_by(date=summary['date']).first()
+                existing = RizeSummaries.query.filter_by(date=summary['date']).first()
                 if existing:
                     for key, value in summary.items():
                         setattr(existing, key, value)
                 else:
-                    new_summary = RizeSummary(**summary)
+                    new_summary = RizeSummaries(**summary)
                     db.session.add(new_summary)
             db.session.commit()
         except Exception as e:
@@ -203,12 +203,12 @@ if __name__ == "__main__":
     
     with app.app_context():
         # Option 1: Use most recent data
-        # start_date = None
-        # end_date = None
+        start_date = None
+        end_date = None
         
         # Option 2: Use specific date range
-        start_date = date(2025, 1, 29)
-        end_date = date(2025, 1, 29)
+        # start_date = date(2025, 1, 29)
+        # end_date = date(2025, 1, 29)
         
         try:
             update_rize_data(start_date, end_date)

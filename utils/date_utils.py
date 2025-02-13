@@ -1,3 +1,10 @@
+import os
+import sys
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
+sys.path.append(PROJECT_ROOT)
+
 from datetime import date, timedelta
 from typing import Dict, Type, Optional, Tuple
 from sqlalchemy import func
@@ -5,8 +12,8 @@ from app.extensions import db
 
 DEFAULT_START_DATES: Dict[str, date] = {
     'Vitals': date(2018, 12, 25),
-    'FinanceData': date(2021, 1, 19),
-    'RizeSummary': date(2024, 2, 18),
+    'Finances': date(2021, 1, 19),
+    'RizeSummaries': date(2024, 2, 18),
     'RizeSessions': date(2024, 2, 18),
     'SleepData': date(2024, 6, 9)
 }

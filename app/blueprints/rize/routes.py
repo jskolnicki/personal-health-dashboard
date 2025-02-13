@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request
 from datetime import datetime, time, timedelta
 from app import db
-from database.models import RizeSession, SleepData
+from database.models import RizeSessions, SleepData
 
 rize_bp = Blueprint('rize', __name__, template_folder='templates')
 
@@ -54,9 +54,9 @@ def dashboard():
     overall_utc_end = max(iv[1] for iv in utc_intervals)
 
     # Fetch sessions overlapping the entire UTC range
-    sessions = db.session.query(RizeSession).filter(
-        RizeSession.end_time >= overall_utc_start,
-        RizeSession.start_time <= overall_utc_end
+    sessions = db.session.query(RizeSessions).filter(
+        RizeSessions.end_time >= overall_utc_start,
+        RizeSessions.start_time <= overall_utc_end
     ).all()
 
     # Prepare results structures

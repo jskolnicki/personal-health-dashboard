@@ -16,7 +16,7 @@ from etl.data_sources.oura.sleep_data import update_oura_sleep_data
 from etl.data_sources.rize.rize import update_rize_data
 from etl.data_sources.google_sheets.finances import update_finance_data
 from etl.data_sources.google_sheets.vitals import update_vitals_data
-from database.models import SleepData, RizeSummary, RizeSession, FinanceData, Vitals
+from database.models import SleepData, RizeSummaries, RizeSessions, Finances, Vitals
 from utils.logging_config import setup_logging
 from utils.blinkstick import StatusManager
 
@@ -60,15 +60,15 @@ def main(global_date_range: Optional[Tuple[date, date]] = None) -> bool:
             date_column='date',
         ),
         DataSource(
-            name="Rize",
+            name="Rize Summaries and Sessions",
             update_func=update_rize_data,
-            model_class=RizeSummary,
+            model_class=RizeSummaries,
             date_column='date',
         ),
         DataSource(
             name="Finances",
             update_func=update_finance_data,
-            model_class=FinanceData,
+            model_class=Finances,
             date_column='transaction_date',
         ),
         DataSource(

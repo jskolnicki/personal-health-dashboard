@@ -19,7 +19,7 @@ load_dotenv()
 
 from app.extensions import db
 from app import create_app
-from database.models import FinanceData
+from database.models import Finances
 from etl.data_sources.google_sheets.api import GoogleSheetsAPI
 from utils.date_utils import get_date_range
 from utils.logging_config import setup_logging
@@ -112,9 +112,9 @@ def process_finance_data(raw_data: List[List], start_date, end_date) -> List[Dic
 
 def get_existing_hashes(start_date, end_date) -> set:
     """Get set of transaction hashes for a date range"""
-    result = FinanceData.query\
-        .filter(FinanceData.transaction_date.between(start_date, end_date))\
-        .with_entities(FinanceData.transaction_hash)\
+    result = Finances.query\
+        .filter(Finances.transaction_date.between(start_date, end_date))\
+        .with_entities(Finances.transaction_hash)\
         .all()
     return set(row[0] for row in result)
 
@@ -122,7 +122,7 @@ def update_finance_data(start_date=None, end_date=None):
     """Update finance data in the database."""
     try:
         if not (start_date and end_date):
-            start_date, end_date = get_date_range(FinanceData, 'transaction_date')
+            start_date, end_date = get_date_range(Finances, 'transaction_date')
             
         logger.debug(f"Fetching finance data for period {start_date} to {end_date}")
         
@@ -146,7 +146,7 @@ def update_finance_data(start_date=None, end_date=None):
         try:
             for record in processed_records:
                 processed_hashes.add(record['transaction_hash'])
-                existing = FinanceData.query.filter_by(
+                existing = Finances.query.filter_by(
                     transaction_hash=record['transaction_hash']
                 ).first()
                 
@@ -155,17 +155,17 @@ def update_finance_data(start_date=None, end_date=None):
                         if key not in ['id', 'created_at']:
                             setattr(existing, key, value)
                 else:
-                    new_transaction = FinanceData(**record)
+                    new_transaction = Finances(**record)
                     db.session.add(new_transaction)
             
             # Delete records that no longer exist in the spreadsheet
             hashes_to_delete = existing_hashes - processed_hashes
             if hashes_to_delete:
                 logger.info(f"Deleting {len(hashes_to_delete)} removed records")
-                FinanceData.query\
+                Finances.query\
                     .filter(
-                        FinanceData.transaction_hash.in_(hashes_to_delete),
-                        FinanceData.transaction_date.between(start_date, end_date)
+                        Finances.transaction_hash.in_(hashes_to_delete),
+                        Finances.transaction_date.between(start_date, end_date)
                     ).delete(synchronize_session=False)
             
             db.session.commit()

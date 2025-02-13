@@ -94,8 +94,8 @@ The project uses Flask-SQLAlchemy with these main models:
 
 - `User`: Basic user information
 - `SleepData` / `NapData`: Sleep tracking
-- `RizeSession` / `RizeSummary`: Productivity data
-- `FinanceData`: Financial transactions
+- `RizeSessions` / `RizeSummaries`: Productivity data
+- `Finances`: Financial transactions
 - `Vitals`: Health metrics
 
 ## Dependencies & Setup
