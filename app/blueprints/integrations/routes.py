@@ -37,7 +37,7 @@ def connect_oura():
         'client_id': client_id,
         'redirect_uri': redirect_uri,
         'response_type': 'code',
-        'state': 'your_state_here'  # In production, use a secure random state
+        'state': 'your_state_here'  #TODO In production, use a secure random state
     }
     
     auth_url = f"{OURA_AUTH_URL}?{'&'.join(f'{k}={v}' for k, v in params.items())}"

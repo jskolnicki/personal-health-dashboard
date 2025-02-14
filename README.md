@@ -4,15 +4,17 @@ A Flask-based personal dashboard that integrates multiple data sources into a ce
 
 ## Project Overview
 
-This project automates the collection, storage, and visualization of personal health and productivity data from various sources:
+This project automates the collection, storage, and visualization of personal health, productivity, and lifestyle data from various sources:
 
 - **Oura Ring:** Sleep patterns, readiness, and activity data
 - **Rize:** Productivity tracking and focus sessions
+- **Journal:** Daily logs and reflections with tagging system
 - **Google Sheets:** Custom data tracking (finances, vitals, etc.)
 
 Key Features:
 - Multi-user authentication system
-- Secure integration credential storage
+- OAuth-based service integrations
+- Secure credential storage and encryption
 - Automated daily data collection per user
 - Centralized MySQL database storage
 - Web-based dashboards for visualization
@@ -29,14 +31,10 @@ personal-health-dashboard/
 │   │   └── base.html            # Base template
 │   ├── blueprints/              # Feature modules
 │   │   ├── auth/                # Authentication
-│   │   │   ├── templates/
-│   │   │   └── routes.py
-│   │   ├── home/               
-│   │   │   ├── templates/
-│   │   │   └── routes.py
-│   │   └── rize/                # Feature-specific
-│   │       ├── templates/
-│   │       └── routes.py
+│   │   ├── home/                # Dashboard home
+│   │   ├── integrations/        # Service connections
+│   │   ├── journal/             # Daily logging
+│   │   └── rize/                # Productivity tracking
 │   └── static/                  # Static assets
 │
 ├── database/
@@ -68,6 +66,7 @@ personal-health-dashboard/
 - Protected routes for personal data
 
 ### Integration Management
+- OAuth 2.0 flow for service connections
 - Secure storage of API credentials using encryption
 - Per-user integration configuration
 - Integration status tracking
@@ -84,6 +83,7 @@ personal-health-dashboard/
 - `UserIntegrations`: API credentials and sync status
 - `SleepData/NapData`: Sleep tracking
 - `RizeSessions/RizeSummaries`: Productivity
+- `DailyLogs/Reflections`: Journal entries
 - `Finances/Vitals`: Custom tracking
 
 ## Setup and Configuration
@@ -100,6 +100,10 @@ DB_PASSWORD=your_password
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=your_db_name
+
+# Oura
+OURA_CLIENT_ID=your_oura_client_id
+OURA_CLIENT_SECRET=your_oura_client_secret
 ```
 
 2. Install dependencies:
@@ -112,15 +116,21 @@ pip install -r requirements.txt
 python database/create_db.py
 ```
 
-## Blueprint Structure
+## Blueprint Architecture
 
-Each feature is organized as a blueprint with:
+Each feature is organized as a blueprint containing:
 - Routes and views (`routes.py`)
-- Blueprint-specific templates
+- Feature-specific templates
 - Independent data models
-- Feature-specific utilities
+- Utility functions
 
-Example blueprint:
+This modular structure allows for:
+- Independent feature development
+- Clear separation of concerns
+- Easy addition of new features
+- Maintainable codebase
+
+Example blueprint structure:
 ```
 blueprints/feature_name/
 ├── templates/           # Feature templates
@@ -140,10 +150,30 @@ python -m etl.batch_job
 python run.py
 ```
 
-## Adding New Features
+## Development Guide
+
+### Adding New Features
 
 1. Create new blueprint directory
 2. Define routes and templates
 3. Add models to database/models.py
 4. Register blueprint in app/__init__.py
 5. Add any required API integrations
+
+### Best Practices
+
+- Follow blueprint pattern for new features
+- Maintain consistent model relationships
+- Use appropriate data types and indexing
+- Keep API integrations modular
+- Implement proper error handling
+- Follow established UI patterns
+
+## Security Considerations
+
+- All user credentials are encrypted
+- API tokens stored securely
+- Password hashing for user accounts
+- Protected routes require authentication
+- CSRF protection enabled
+- Secure session management

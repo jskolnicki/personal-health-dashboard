@@ -258,3 +258,44 @@ class Vitals(db.Model):
     drinks = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+
+class DailyLogs(db.Model):
+    __tablename__ = 'daily_logs'
+    
+    date = db.Column(db.Date, primary_key=True)
+    content = db.Column(db.String(10000), nullable=False)
+    summary = db.Column(db.String(1000), nullable=True)
+    
+    # Ratings
+    day_score = db.Column(db.SmallInteger, nullable=True)
+    productivity_score = db.Column(db.SmallInteger, nullable=True)
+    
+    # Tags
+    boolean_tags = db.Column(db.String(500), nullable=True)
+    location_tags = db.Column(db.String(500), nullable=True)
+    people_tags = db.Column(db.String(500), nullable=True)
+    custom_tags = db.Column(db.String(500), nullable=True)
+    
+    # Metadata
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_daily_logs_date', 'date'),
+    )
+
+class Reflections(db.Model):
+    __tablename__ = 'reflections'
+    
+    reflection_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    date = db.Column(db.Date, nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.String(10000), nullable=False)
+    themes = db.Column(db.String(500), nullable=True)
+    
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_reflections_date', 'date'),
+    )

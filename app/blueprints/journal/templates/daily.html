@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Journal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Date Navigation -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <button id="prevDay" class="btn btn-outline-primary">←</button>
+                    <input type="text" id="datePicker" class="form-control text-center mx-2" style="max-width: 150px;" value="{{ current_date }}">
+                    <button id="nextDay" class="btn btn-outline-primary">→</button>
+                </div>
+
+                <!-- Main Content -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Journal Entry</label>
+                    <textarea id="content" class="form-control font-monospace" rows="15" 
+                              placeholder="Write your daily entry here..."
+                              style="resize: vertical;"></textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Summary (Optional)</label>
+                    <textarea id="summary" class="form-control" rows="3" 
+                              placeholder="Brief summary of the day..."></textarea>
+                </div>
+
+                <!-- Ratings -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Day Score (1-10)</label>
+                        <input type="number" id="dayScore" class="form-control" 
+                               min="{{ default_scores.day_score.min }}" 
+                               max="{{ default_scores.day_score.max }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Productivity Score (1-10)</label>
+                        <input type="number" id="productivityScore" class="form-control"
+                               min="{{ default_scores.productivity_score.min }}" 
+                               max="{{ default_scores.productivity_score.max }}">
+                    </div>
+                </div>
+
+                <!-- Quick Tags -->
+                {% for category, tags in quick_tags.items() %}
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-capitalize">{{ category }}</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for tag in tags %}
+                        <button class="tag-btn btn btn-outline-secondary btn-sm" 
+                                data-tag="{{ tag }}" 
+                                data-category="{{ category }}">
+                            {{ tag|replace('_', ' ')|title }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                <!-- Custom Tags -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Custom Tags</label>
+                    <input type="text" id="customTags" class="form-control" 
+                           placeholder="Enter tags separated by commas">
+                </div>
+
+                <!-- Save Button -->
+                <button id="saveEntry" class="btn btn-primary w-100">Save Entry</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Flatpickr for date picking -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+
+<style>
+.tag-btn.active {
+    background-color: var(--bs-primary);
+    color: white;
+}
+</style>
+
+<script>
+    // Initialize date picker with current date
+    const datePicker = flatpickr("#datePicker", {
+        defaultDate: "{{ current_date }}",
+        dateFormat: "Y-m-d"
+    });
+
+    // Navigation buttons
+    document.getElementById("prevDay").addEventListener("click", () => {
+        const currentDate = datePicker.selectedDates[0];
+        datePicker.setDate(new Date(currentDate.setDate(currentDate.getDate() - 1)));
+        loadEntry();
+    });
+
+    document.getElementById("nextDay").addEventListener("click", () => {
+        const currentDate = datePicker.selectedDates[0];
+        datePicker.setDate(new Date(currentDate.setDate(currentDate.getDate() + 1)));
+        loadEntry();
+    });
+
+    // Quick tags functionality
+    document.querySelectorAll(".tag-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            btn.classList.toggle("active");
+        });
+    });
+
+    // Load entry data
+    async function loadEntry() {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        try {
+            const response = await fetch(`/journal/entry/${date}`);
+            const data = await response.json();
+            
+            document.getElementById("content").value = data.content || '';
+            document.getElementById("summary").value = data.summary || '';
+            document.getElementById("dayScore").value = data.day_score || '';
+            document.getElementById("productivityScore").value = data.productivity_score || '';
+            
+            // Reset all tags
+            document.querySelectorAll(".tag-btn").forEach(btn => {
+                btn.classList.remove("active");
+                if (data.boolean_tags && data.boolean_tags.includes(btn.dataset.tag)) {
+                    btn.classList.add("active");
+                }
+            });
+            
+            document.getElementById("customTags").value = data.custom_tags ? data.custom_tags.join(", ") : '';
+        } catch (error) {
+            console.error('Error loading entry:', error);
+        }
+    }
+
+    // Save entry
+    document.getElementById("saveEntry").addEventListener("click", async () => {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        const selectedTags = Array.from(document.querySelectorAll(".tag-btn.active"))
+            .map(btn => btn.dataset.tag);
+        const customTags = document.getElementById("customTags").value
+            .split(",")
+            .map(tag => tag.trim())
+            .filter(tag => tag);
+
+        const data = {
+            date: date,
+            content: document.getElementById("content").value,
+            summary: document.getElementById("summary").value,
+            day_score: parseInt(document.getElementById("dayScore").value) || null,
+            productivity_score: parseInt(document.getElementById("productivityScore").value) || null,
+            boolean_tags: selectedTags,
+            custom_tags: customTags,
+            location_tags: [],
+            people_tags: []
+        };
+
+        try {
+            const response = await fetch('/journal/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                const toast = new bootstrap.Toast(document.getElementById('saveToast'));
+                toast.show();
+            } else {
+                throw new Error('Failed to save');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error saving entry. Please try again.');
+        }
+    });
+
+    // Load initial entry
+    loadEntry();
+</script>
+
+<!-- Toast for save confirmation -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="saveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                Entry saved successfully!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
