@@ -2,11 +2,12 @@ from flask import Blueprint, render_template, request
 from datetime import datetime, time, timedelta
 from app import db
 from database.models import RizeSessions, SleepData
+from flask_login import login_required
 
 rize_bp = Blueprint('rize', __name__, template_folder='templates')
 
 @rize_bp.route('/rize_dashboard', methods=['GET'])
-def dashboard():
+def load_rize_dashboard():
     # Determine date range from query params or default to last 7 days
     local_start_str = request.args.get('start_date', None)
     local_end_str = request.args.get('end_date', None)

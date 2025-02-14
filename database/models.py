@@ -1,20 +1,113 @@
 from datetime import datetime
 from app.extensions import db
+from utils.encryption import EncryptionManager
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.mysql import TIMESTAMP
 from sqlalchemy import Index
 
-class User(db.Model):
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+
+class Users(UserMixin, db.Model):
     __tablename__ = 'users'
     
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
-    created_at = db.Column(db.DateTime, server_default=func.now())
+    password_hash = db.Column(db.String(256), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    last_login = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     sleep_data = db.relationship("SleepData", back_populates="user", lazy='dynamic')
     nap_data = db.relationship("NapData", back_populates="user", lazy='dynamic')
+    integrations = db.relationship('UserIntegrations', back_populates='user')
+
+    def __init__(self, username, email, password=None, **kwargs):
+        super(Users, self).__init__(**kwargs)
+        self.username = username
+        self.email = email
+        if password:
+            self.set_password(password)
+
+    def set_password(self, password):
+        """Set the user's password."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Check if the provided password matches the hash."""
+        return check_password_hash(self.password_hash, password)
+    
+    def update_last_login(self):
+        """Update the last login timestamp."""
+        self.last_login = datetime.utcnow()
+        db.session.commit()
+
+    def get_id(self):
+        """Required for Flask-Login."""
+        return str(self.user_id)
+
+    def __repr__(self):
+        return f'<User {self.username}>'
+    
+class UserIntegrations(db.Model):
+    __tablename__ = 'user_integrations'
+    
+    integration_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    integration_type = db.Column(db.String(50), nullable=False)
+    encrypted_credentials = db.Column(db.LargeBinary)
+    status = db.Column(db.String(20), default='active')
+    last_sync = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationship back to User
+    user = db.relationship('Users', back_populates='integrations')
+
+    def __init__(self, user_id, integration_type, credentials=None, status='active'):
+        self.user_id = user_id
+        self.integration_type = integration_type
+        self.status = status
+        if credentials:
+            self.set_credentials(credentials)
+
+    def set_credentials(self, credentials_dict):
+        """
+        Encrypt and store credentials.
+        
+        Args:
+            credentials_dict (dict): Dictionary of credentials to encrypt
+        """
+        encryption_manager = EncryptionManager()
+        self.encrypted_credentials = encryption_manager.encrypt_credentials(credentials_dict)
+
+    def get_credentials(self):
+        """
+        Decrypt and return stored credentials.
+        
+        Returns:
+            dict: Decrypted credentials dictionary
+        """
+        if not self.encrypted_credentials:
+            return {}
+            
+        encryption_manager = EncryptionManager()
+        return encryption_manager.decrypt_credentials(self.encrypted_credentials)
+
+    def update_sync_status(self, success=True):
+        """
+        Update the last sync time and status.
+        
+        Args:
+            success (bool): Whether the sync was successful
+        """
+        self.last_sync = datetime.utcnow()
+        self.status = 'active' if success else 'error'
+        db.session.commit()
 
 class SleepData(db.Model):
     __tablename__ = 'sleep_data'
@@ -40,7 +133,7 @@ class SleepData(db.Model):
     average_hrv = db.Column(db.Float, nullable=True)
     
     # Relationships
-    user = db.relationship("User", back_populates="sleep_data")
+    user = db.relationship("Users", back_populates="sleep_data")
     
     # Constraints and Indexes
     __table_args__ = (
@@ -71,7 +164,7 @@ class NapData(db.Model):
     average_hrv = db.Column(db.Float, nullable=True)
     
     # Relationships
-    user = db.relationship("User", back_populates="nap_data")
+    user = db.relationship("Users", back_populates="nap_data")
     
     # Constraints and Indexes
     __table_args__ = (
