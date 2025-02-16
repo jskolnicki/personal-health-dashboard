@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Reflections{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Entry Type Toggle -->
+                <div class="d-flex justify-content-center mb-4">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('journal.daily', date_str=current_date) }}" 
+                           class="btn btn-outline-primary">Daily Log</a>
+                        <a href="{{ url_for('journal.reflections', date_str=current_date) }}" 
+                           class="btn btn-primary active">Reflections</a>
+                    </div>
+                </div>
+
+                <!-- Date Navigation -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <button id="prevReflection" class="btn btn-outline-primary">← Previous Reflection</button>
+                    <input type="text" id="datePicker" class="form-control text-center mx-2" style="max-width: 150px;" value="{{ current_date }}">
+                    <button id="nextReflection" class="btn btn-outline-primary">Next Reflection →</button>
+                </div>
+
+                <!-- Main Content -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Reflection</label>
+                    <div class="form-text mb-2">
+                        Use this space for deeper reflections, long-term thoughts, and broader insights that go beyond daily events.
+                    </div>
+                    <textarea id="content" class="form-control font-monospace" rows="20" 
+                              placeholder="Write your reflection here..."
+                              style="resize: vertical;"></textarea>
+                </div>
+
+                <!-- Themes -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Themes</label>
+                    <div class="form-text mb-2">
+                        Add relevant themes or topics for this reflection (comma-separated)
+                    </div>
+                    <input type="text" id="themes" class="form-control" 
+                           placeholder="e.g., career growth, relationships, personal development">
+                </div>
+
+                <!-- Save Button -->
+                <button id="saveReflection" class="btn btn-primary w-100">Save Reflection</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Flatpickr for date picking -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+
+<script>
+    // Initialize date picker
+    const datePicker = flatpickr("#datePicker", {
+        defaultDate: "{{ current_date }}",
+        dateFormat: "Y-m-d",
+        onChange: function(selectedDates) {
+            loadReflection();
+        }
+    });
+
+    // Navigation functions
+    async function navigateReflection(direction) {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        try {
+            const response = await fetch(`/reflections/navigate/${date}/${direction}`);
+            const data = await response.json();
+            
+            if (data.date) {
+                datePicker.setDate(data.date);
+                document.getElementById("content").value = data.content || '';
+                document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
+            } else {
+                // If no reflection found in that direction
+                if (direction === 'prev') {
+                    alert('No earlier reflections found');
+                } else {
+                    alert('No later reflections found');
+                }
+            }
+        } catch (error) {
+            console.error('Error navigating reflections:', error);
+        }
+    }
+
+    // Navigation button listeners
+    document.getElementById("prevReflection").addEventListener("click", () => {
+        navigateReflection('prev');
+    });
+
+    document.getElementById("nextReflection").addEventListener("click", () => {
+        navigateReflection('next');
+    });
+
+    // Load reflection data
+    async function loadReflection() {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        try {
+            const response = await fetch(`/reflections/entry/${date}`);
+            const data = await response.json();
+            
+            document.getElementById("content").value = data.content || '';
+            document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
+        } catch (error) {
+            console.error('Error loading reflection:', error);
+        }
+    }
+
+    // Save reflection
+    document.getElementById("saveReflection").addEventListener("click", async () => {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        
+        const themes = document.getElementById("themes").value
+            .split(",")
+            .map(theme => theme.trim())
+            .filter(theme => theme);
+
+        const data = {
+            date: date,
+            content: document.getElementById("content").value,
+            themes: themes
+        };
+
+        try {
+            const response = await fetch('/reflections/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                const toast = new bootstrap.Toast(document.getElementById('saveToast'));
+                toast.show();
+            } else {
+                throw new Error('Failed to save');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error saving reflection. Please try again.');
+        }
+    });
+
+    // Load initial reflection
+    loadReflection();
+</script>
+
+<!-- Toast for save confirmation -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="saveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                Reflection saved successfully!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}

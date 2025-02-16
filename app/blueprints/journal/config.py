@@ -1,23 +1,39 @@
 QUICK_TAGS = {
     'activities': [
-        'workout',
-        'reading',
-        'coding',
-        'meeting',
-        'social',
-        'travel',
+        'strength_training',
+        'running',
+        'walking',
+        'dog_walk',
+        'hiking',
         'disc_golf',
-        'date_night'
+        'hooverball',
+        'cooking'
     ],
-    'locations': [
-        'work',
-        'home',
-        'gym'
+    'social': [
+        'date_night',
+        'friends',
+        'family',
+        'phone_call',
+        'new_connection',
+        'group_activity',
+        'party',
+        'networking'
     ],
-    'mood': [
+    'education': [
+        'reading',
+        'online_course',
+        'textbook',
+        'video',
+        'podcast',
+        'studying'
+    ],
+    'mood': [  # Optional moods for when you want to note them
         'productive',
-        'tired',
-        'energized'
+        'energized',
+        'focused',
+        'relaxed',
+        'stressed',
+        'tired'
     ]
 }
 

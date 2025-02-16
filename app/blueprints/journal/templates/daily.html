@@ -7,6 +7,16 @@
     <div class="col-lg-10">
         <div class="card shadow-sm">
             <div class="card-body">
+                <!-- Entry Type Toggle -->
+                <div class="d-flex justify-content-center mb-4">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('journal.daily', date_str=current_date) }}" 
+                           class="btn btn-primary active">Daily Log</a>
+                        <a href="{{ url_for('journal.reflections', date_str=current_date) }}" 
+                           class="btn btn-outline-primary">Reflections</a>
+                    </div>
+                </div>
+
                 <!-- Date Navigation -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <button id="prevDay" class="btn btn-outline-primary">←</button>
@@ -34,13 +44,15 @@
                         <label class="form-label fw-bold">Day Score (1-10)</label>
                         <input type="number" id="dayScore" class="form-control" 
                                min="{{ default_scores.day_score.min }}" 
-                               max="{{ default_scores.day_score.max }}">
+                               max="{{ default_scores.day_score.max }}"
+                               placeholder="Rate your day">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Productivity Score (1-10)</label>
                         <input type="number" id="productivityScore" class="form-control"
                                min="{{ default_scores.productivity_score.min }}" 
-                               max="{{ default_scores.productivity_score.max }}">
+                               max="{{ default_scores.productivity_score.max }}"
+                               placeholder="Rate your productivity">
                     </div>
                 </div>
 
@@ -48,7 +60,7 @@
                 {% for category, tags in quick_tags.items() %}
                 <div class="mb-4">
                     <label class="form-label fw-bold text-capitalize">{{ category }}</label>
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap gap-2" id="{{ category }}Tags">
                         {% for tag in tags %}
                         <button class="tag-btn btn btn-outline-secondary btn-sm" 
                                 data-tag="{{ tag }}" 
@@ -89,20 +101,23 @@
     // Initialize date picker with current date
     const datePicker = flatpickr("#datePicker", {
         defaultDate: "{{ current_date }}",
-        dateFormat: "Y-m-d"
+        dateFormat: "Y-m-d",
+        onChange: function(selectedDates) {
+            window.location.href = `/journal/${selectedDates[0].toISOString().split('T')[0]}`;
+        }
     });
 
     // Navigation buttons
     document.getElementById("prevDay").addEventListener("click", () => {
         const currentDate = datePicker.selectedDates[0];
-        datePicker.setDate(new Date(currentDate.setDate(currentDate.getDate() - 1)));
-        loadEntry();
+        const newDate = new Date(currentDate.setDate(currentDate.getDate() - 1));
+        window.location.href = `/journal/${newDate.toISOString().split('T')[0]}`;
     });
 
     document.getElementById("nextDay").addEventListener("click", () => {
         const currentDate = datePicker.selectedDates[0];
-        datePicker.setDate(new Date(currentDate.setDate(currentDate.getDate() + 1)));
-        loadEntry();
+        const newDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
+        window.location.href = `/journal/${newDate.toISOString().split('T')[0]}`;
     });
 
     // Quick tags functionality
@@ -127,7 +142,8 @@
             // Reset all tags
             document.querySelectorAll(".tag-btn").forEach(btn => {
                 btn.classList.remove("active");
-                if (data.boolean_tags && data.boolean_tags.includes(btn.dataset.tag)) {
+                const category = btn.dataset.category;
+                if (data[category] && data[category].includes(btn.dataset.tag)) {
                     btn.classList.add("active");
                 }
             });
@@ -141,8 +157,17 @@
     // Save entry
     document.getElementById("saveEntry").addEventListener("click", async () => {
         const date = datePicker.selectedDates[0].toISOString().split('T')[0];
-        const selectedTags = Array.from(document.querySelectorAll(".tag-btn.active"))
-            .map(btn => btn.dataset.tag);
+        
+        // Collect tags by category
+        const tagsByCategory = {};
+        document.querySelectorAll(".tag-btn.active").forEach(btn => {
+            const category = btn.dataset.category;
+            if (!tagsByCategory[category]) {
+                tagsByCategory[category] = [];
+            }
+            tagsByCategory[category].push(btn.dataset.tag);
+        });
+        
         const customTags = document.getElementById("customTags").value
             .split(",")
             .map(tag => tag.trim())
@@ -154,10 +179,11 @@
             summary: document.getElementById("summary").value,
             day_score: parseInt(document.getElementById("dayScore").value) || null,
             productivity_score: parseInt(document.getElementById("productivityScore").value) || null,
-            boolean_tags: selectedTags,
-            custom_tags: customTags,
-            location_tags: [],
-            people_tags: []
+            activities: tagsByCategory.activities || [],
+            social: tagsByCategory.social || [],
+            education: tagsByCategory.education || [],
+            mood: tagsByCategory.mood || [],
+            custom_tags: customTags
         };
 
         try {

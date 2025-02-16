@@ -265,15 +265,16 @@ class DailyLogs(db.Model):
     date = db.Column(db.Date, primary_key=True)
     content = db.Column(db.String(10000), nullable=False)
     summary = db.Column(db.String(1000), nullable=True)
-    
-    # Ratings
+
+    #Ratings
     day_score = db.Column(db.SmallInteger, nullable=True)
     productivity_score = db.Column(db.SmallInteger, nullable=True)
     
     # Tags
-    boolean_tags = db.Column(db.String(500), nullable=True)
-    location_tags = db.Column(db.String(500), nullable=True)
-    people_tags = db.Column(db.String(500), nullable=True)
+    activities = db.Column(db.String(500), nullable=True)
+    social = db.Column(db.String(500), nullable=True)
+    education = db.Column(db.String(500), nullable=True)
+    mood = db.Column(db.String(500), nullable=True)
     custom_tags = db.Column(db.String(500), nullable=True)
     
     # Metadata
@@ -289,10 +290,8 @@ class Reflections(db.Model):
     
     reflection_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     date = db.Column(db.Date, nullable=False)
-    title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.String(10000), nullable=False)
     themes = db.Column(db.String(500), nullable=True)
-    
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
 
