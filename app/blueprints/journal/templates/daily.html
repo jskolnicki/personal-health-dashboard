@@ -10,9 +10,9 @@
                 <!-- Entry Type Toggle -->
                 <div class="d-flex justify-content-center mb-4">
                     <div class="btn-group" role="group">
-                        <a href="{{ url_for('journal.daily', date_str=current_date) }}" 
+                        <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}" 
                            class="btn btn-primary active">Daily Log</a>
-                        <a href="{{ url_for('journal.reflections', date_str=current_date) }}" 
+                        <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}" 
                            class="btn btn-outline-primary">Reflections</a>
                     </div>
                 </div>
@@ -132,6 +132,9 @@
         const date = datePicker.selectedDates[0].toISOString().split('T')[0];
         try {
             const response = await fetch(`/journal/entry/${date}`);
+            if (!response.ok) {
+                throw new Error('Failed to load entry');
+            }
             const data = await response.json();
             
             document.getElementById("content").value = data.content || '';
@@ -151,6 +154,7 @@
             document.getElementById("customTags").value = data.custom_tags ? data.custom_tags.join(", ") : '';
         } catch (error) {
             console.error('Error loading entry:', error);
+            // You might want to show an error message to the user here
         }
     }
 

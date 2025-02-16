@@ -1,6 +1,7 @@
 from flask import render_template, jsonify, request
 from datetime import datetime
 import json
+from flask_login import login_required, current_user
 from app.blueprints.journal import journal_bp
 from app.blueprints.journal.config import QUICK_TAGS, DEFAULT_SCORES
 from app import db
@@ -40,7 +41,8 @@ def save_to_markdown(date_obj, content, tags=None, is_reflection=False):
 
 @journal_bp.route('/journal')
 @journal_bp.route('/journal/<date_str>')
-def daily(date_str=None):
+@login_required
+def load_daily_page(date_str=None):
     if date_str:
         try:
             current_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -58,7 +60,8 @@ def daily(date_str=None):
 
 @journal_bp.route('/reflections')
 @journal_bp.route('/reflections/<date_str>')
-def reflections(date_str=None):
+@login_required
+def load_reflections_page(date_str=None):
     if date_str:
         try:
             current_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -73,10 +76,14 @@ def reflections(date_str=None):
     )
 
 @journal_bp.route('/journal/entry/<date_str>')
+@login_required
 def get_entry(date_str):
     try:
         entry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        entry = DailyLogs.query.filter_by(date=entry_date).first()
+        entry = DailyLogs.query.filter_by(
+            date=entry_date,
+            user_id=current_user.user_id
+        ).first()
         
         if entry:
             return jsonify({
@@ -96,10 +103,14 @@ def get_entry(date_str):
         return jsonify({'error': str(e)}), 500
 
 @journal_bp.route('/reflections/entry/<date_str>')
+@login_required
 def get_reflection(date_str):
     try:
         reflection_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        reflection = Reflections.query.filter_by(date=reflection_date).first()
+        reflection = Reflections.query.filter_by(
+            date=reflection_date,
+            user_id=current_user.user_id
+        ).first()
         
         if reflection:
             return jsonify({
@@ -112,17 +123,20 @@ def get_reflection(date_str):
         return jsonify({'error': str(e)}), 500
 
 @journal_bp.route('/reflections/navigate/<date_str>/<direction>')
+@login_required
 def navigate_reflections(date_str, direction):
     try:
         current_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
+        query = Reflections.query.filter_by(user_id=current_user.user_id)
+        
         if direction == 'prev':
-            reflection = Reflections.query\
+            reflection = query\
                 .filter(Reflections.date < current_date)\
                 .order_by(desc(Reflections.date))\
                 .first()
         else:  # next
-            reflection = Reflections.query\
+            reflection = query\
                 .filter(Reflections.date > current_date)\
                 .order_by(Reflections.date)\
                 .first()
@@ -131,14 +145,19 @@ def navigate_reflections(date_str, direction):
             return jsonify({
                 'date': reflection.date.strftime('%Y-%m-%d'),
                 'content': reflection.content,
-                'themes': json.loads(reflection.themes) if reflection.themes else []
+                'themes': json.loads(reflection.themes) if reflection.themes else [],
+                'status': 'success'
             })
-        return jsonify({})
+        return jsonify({
+            'status': 'no_entries',
+            'message': 'No earlier reflections found' if direction == 'prev' else 'No later reflections found'
+        })
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @journal_bp.route('/journal/save', methods=['POST'])
+@login_required
 def save_entry():
     try:
         data = request.json
@@ -152,7 +171,10 @@ def save_entry():
         custom_tags = json.dumps(data.get('custom_tags', []))
         
         # Check for existing entry
-        entry = DailyLogs.query.filter_by(date=entry_date).first()
+        entry = DailyLogs.query.filter_by(
+            date=entry_date,
+            user_id=current_user.user_id
+        ).first()
         
         if entry:
             entry.content = data['content']
@@ -166,6 +188,7 @@ def save_entry():
             entry.custom_tags = custom_tags
         else:
             entry = DailyLogs(
+                user_id=current_user.user_id,
                 date=entry_date,
                 content=data['content'],
                 summary=data.get('summary'),
@@ -197,6 +220,7 @@ def save_entry():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @journal_bp.route('/reflections/save', methods=['POST'])
+@login_required
 def save_reflection():
     try:
         data = request.json
@@ -206,13 +230,17 @@ def save_reflection():
         themes = json.dumps(data.get('themes', []))
         
         # Check for existing reflection
-        reflection = Reflections.query.filter_by(date=reflection_date).first()
+        reflection = Reflections.query.filter_by(
+            date=reflection_date,
+            user_id=current_user.user_id
+        ).first()
         
         if reflection:
             reflection.content = data['content']
             reflection.themes = themes
         else:
             reflection = Reflections(
+                user_id=current_user.user_id,
                 date=reflection_date,
                 content=data['content'],
                 themes=themes

@@ -10,9 +10,9 @@
                 <!-- Entry Type Toggle -->
                 <div class="d-flex justify-content-center mb-4">
                     <div class="btn-group" role="group">
-                        <a href="{{ url_for('journal.daily', date_str=current_date) }}" 
+                        <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}" 
                            class="btn btn-outline-primary">Daily Log</a>
-                        <a href="{{ url_for('journal.reflections', date_str=current_date) }}" 
+                        <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}" 
                            class="btn btn-primary active">Reflections</a>
                     </div>
                 </div>
@@ -62,7 +62,7 @@
         defaultDate: "{{ current_date }}",
         dateFormat: "Y-m-d",
         onChange: function(selectedDates) {
-            loadReflection();
+            window.location.href = `/reflections/${selectedDates[0].toISOString().split('T')[0]}`;
         }
     });
 
@@ -71,22 +71,26 @@
         const date = datePicker.selectedDates[0].toISOString().split('T')[0];
         try {
             const response = await fetch(`/reflections/navigate/${date}/${direction}`);
+            if (!response.ok) {
+                throw new Error('Navigation failed');
+            }
+            
             const data = await response.json();
             
-            if (data.date) {
+            if (data.status === 'success') {
                 datePicker.setDate(data.date);
                 document.getElementById("content").value = data.content || '';
                 document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
-            } else {
-                // If no reflection found in that direction
-                if (direction === 'prev') {
-                    alert('No earlier reflections found');
-                } else {
-                    alert('No later reflections found');
-                }
+            } else if (data.status === 'no_entries') {
+                // Show custom alert using Bootstrap modal
+                const modalBody = document.getElementById('alertModalBody');
+                modalBody.textContent = data.message;
+                const alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
+                alertModal.show();
             }
         } catch (error) {
             console.error('Error navigating reflections:', error);
+            alert('Error navigating reflections. Please try again.');
         }
     }
 
@@ -104,12 +108,16 @@
         const date = datePicker.selectedDates[0].toISOString().split('T')[0];
         try {
             const response = await fetch(`/reflections/entry/${date}`);
-            const data = await response.json();
+            if (!response.ok) {
+                throw new Error('Failed to load reflection');
+            }
             
+            const data = await response.json();
             document.getElementById("content").value = data.content || '';
             document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
         } catch (error) {
             console.error('Error loading reflection:', error);
+            // You might want to show an error message to the user here
         }
     }
 
@@ -161,6 +169,23 @@
                 Reflection saved successfully!
             </div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Modal for navigation messages -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="alertModalLabel">Navigation Notice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="alertModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
         </div>
     </div>
 </div>
