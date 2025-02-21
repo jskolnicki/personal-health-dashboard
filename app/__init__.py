@@ -42,7 +42,7 @@ def create_app(config_object=Config):
     from app.blueprints.integrations.routes import integrations_bp
     app.register_blueprint(integrations_bp)
     
-    # from app.blueprints.journal.routes import journal_bp
-    # app.register_blueprint(journal_bp)
+    from app.blueprints.journal.routes import journal_bp
+    app.register_blueprint(journal_bp)
     
     return app

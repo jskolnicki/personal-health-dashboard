@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Journal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        
+        <!-- Notepad container, with top padding: 2rem -->
+        <div class="notepad p-3 mt-4 position-relative" style="padding-top: 2rem !important;">
+            <div class="notepad-binding"></div>
+            
+            <!-- Entry Type Toggle -->
+            <div class="d-flex justify-content-center mb-4">
+                <div class="btn-group" role="group">
+                    <!-- We'll intercept these links in JS to show the unsaved-changes modal if needed -->
+                    <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}"
+                       id="toggleDailyLog"
+                       class="btn btn-primary active">
+                       <i class="bi bi-pencil-square me-1"></i>Daily Log
+                    </a>
+                    <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}"
+                       id="toggleReflections"
+                       class="btn btn-outline-primary">
+                       <i class="bi bi-lightbulb me-1"></i>Reflections
+                    </a>
+                </div>
+            </div>
+
+            <!-- Date Navigation -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <button id="prevDay" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left-short"></i>
+                </button>
+                <input type="text"
+                       id="datePicker"
+                       class="form-control text-center mx-2"
+                       style="max-width: 150px;"
+                       value="{{ current_date }}">
+                <button id="nextDay" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-right-short"></i>
+                </button>
+            </div>
+
+            <!-- Journal Entry -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-bookmark-check me-1"></i>Journal Entry
+                </label>
+                <textarea id="content"
+                          class="form-control notepad-lines"
+                          rows="15"
+                          placeholder="Use '- ' or '* ' at the start of lines for bullet points..."
+                          style="font-family: 'Nunito', sans-serif;">
+                </textarea>
+            </div>
+
+            <!-- Summary -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-card-text me-1"></i>Summary (Optional)
+                </label>
+                <textarea id="summary"
+                          class="form-control notepad-lines"
+                          rows="3"
+                          placeholder="Brief summary of the day..."
+                          style="font-family: 'Nunito', sans-serif;">
+                </textarea>
+            </div>
+
+            <!-- Ratings -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-emoji-smile me-1"></i>Day Score (1-10)
+                    </label>
+                    <input type="number"
+                           id="dayScore"
+                           class="form-control notepad-input"
+                           min="{{ default_scores.day_score.min }}"
+                           max="{{ default_scores.day_score.max }}"
+                           placeholder="Rate your day">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-speedometer2 me-1"></i>Productivity Score (1-10)
+                    </label>
+                    <input type="number"
+                           id="productivityScore"
+                           class="form-control notepad-input"
+                           min="{{ default_scores.productivity_score.min }}"
+                           max="{{ default_scores.productivity_score.max }}"
+                           placeholder="Rate your productivity">
+                </div>
+            </div>
+
+            <!-- Quick Tags -->
+            {% for category, tags in quick_tags.items() %}
+            <div class="mb-4">
+                <label class="form-label fw-bold text-capitalize">
+                    <i class="bi bi-tags me-1"></i>{{ category }}
+                </label>
+                <div class="d-flex flex-wrap gap-2" id="{{ category }}Tags">
+                    {% for tag in tags %}
+                    <button class="tag-btn btn btn-outline-secondary btn-sm"
+                            data-tag="{{ tag }}"
+                            data-category="{{ category }}">
+                        {{ tag|replace('_', ' ')|title }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Custom Tags -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-list-stars me-1"></i>Custom Tags
+                </label>
+                <input type="text"
+                       id="customTags"
+                       class="form-control notepad-lines"
+                       placeholder="Enter tags separated by commas"
+                       style="font-family: 'Nunito', sans-serif;">
+            </div>
+
+            <!-- Save Button -->
+            <button id="saveEntry" class="btn btn-success w-100">
+                <i class="bi bi-save me-1"></i>Save Entry
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Unsaved Changes Modal -->
+<div class="modal fade" id="unsavedModal" tabindex="-1" aria-labelledby="unsavedModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="unsavedModalLabel">Unsaved Changes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="cancelModal()"></button>
+      </div>
+      <div class="modal-body">
+        You have unsaved changes. Would you like to save them before leaving this page?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success" onclick="saveAndContinue()">Save &amp; Continue</button>
+        <button type="button" class="btn btn-danger" onclick="discardAndContinue()">Discard &amp; Continue</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cancelModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Flatpickr date picker -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+
+<style>
+/* Softer yellow background, 2rem top padding above, rest the same as before */
+.notepad {
+  background-color: #FCF9E6;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  position: relative;
+}
+
+.notepad-binding {
+  position: absolute;
+  top: 0; 
+  left: 0; 
+  width: 100%;
+  height: 20px;
+  background-color: #00326f;
+  border-bottom: 4px solid #002451;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+/* Lined textareas */
+.notepad-lines {
+  background: repeating-linear-gradient(
+    to bottom,
+    #FCF9E6 0px,
+    #FCF9E6 24px,
+    #f0ecd7 24px,
+    #f0ecd7 25px
+  );
+  border: none;
+  border-radius: 6px;
+  color: #333;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  padding: 8px 12px;
+  box-shadow: inset 0 0 0 1px #ccc;
+  resize: vertical;
+}
+
+/* Numeric input fields keep the same color, but no stripes */
+.notepad-input {
+  background-color: #FCF9E6;
+  border: none;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px #ccc;
+  margin-bottom: 1rem;
+}
+
+.tag-btn {
+    transition: background-color 0.3s, color 0.3s;
+}
+.tag-btn:hover {
+    background-color: var(--bs-primary);
+    color: #fff;
+}
+.tag-btn.active {
+    background-color: var(--bs-primary);
+    color: white;
+}
+</style>
+
+<script>
+    let unsavedChanges = false;
+    let pendingNavigation = null; // We'll store the function we want to call after user decides
+
+    // Mark as unsaved whenever user changes input
+    function setUnsaved() {
+        unsavedChanges = true;
+    }
+
+    // We'll attach setUnsaved() to relevant fields
+    function attachChangeListeners() {
+        const fields = ['content','summary','dayScore','productivityScore','customTags'];
+        fields.forEach(id => {
+            document.getElementById(id).addEventListener('input', setUnsaved);
+        });
+        // Tag buttons
+        document.querySelectorAll(".tag-btn").forEach(btn => {
+            btn.addEventListener("click", setUnsaved);
+        });
+    }
+
+    // Instead of confirm(), we show the modal and store a callback
+    function maybeNavigate(callback) {
+        if (!unsavedChanges) {
+            callback();
+        } else {
+            pendingNavigation = callback;
+            const modal = new bootstrap.Modal(document.getElementById('unsavedModal'));
+            modal.show();
+        }
+    }
+
+    // Called by "Save & Continue" button
+    async function saveAndContinue() {
+        // We'll do exactly what saveEntry does, then call pendingNavigation
+        await saveEntryInternal();
+        closeUnsavedModal();
+        if (typeof pendingNavigation === 'function') {
+            pendingNavigation();
+        }
+    }
+
+    // Called by "Discard & Continue" button
+    function discardAndContinue() {
+        unsavedChanges = false; // discard changes
+        closeUnsavedModal();
+        if (typeof pendingNavigation === 'function') {
+            pendingNavigation();
+        }
+    }
+
+    // Called by "Cancel" button or the modal close "X"
+    function cancelModal() {
+        pendingNavigation = null;
+    }
+
+    function closeUnsavedModal() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedModal'));
+        modal.hide();
+    }
+
+    // We'll separate out the actual save logic so "saveEntry" can call it
+    async function saveEntryInternal() {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        
+        // Collect tags
+        const tagsByCategory = {};
+        document.querySelectorAll(".tag-btn.active").forEach(btn => {
+            const category = btn.dataset.category;
+            if (!tagsByCategory[category]) {
+                tagsByCategory[category] = [];
+            }
+            tagsByCategory[category].push(btn.dataset.tag);
+        });
+        
+        const customTags = document.getElementById("customTags").value
+            .split(",")
+            .map(tag => tag.trim())
+            .filter(tag => tag);
+
+        const data = {
+            date: date,
+            content: document.getElementById("content").value,
+            summary: document.getElementById("summary").value,
+            day_score: parseInt(document.getElementById("dayScore").value) || null,
+            productivity_score: parseInt(document.getElementById("productivityScore").value) || null,
+            activities: tagsByCategory.activities || [],
+            social: tagsByCategory.social || [],
+            education: tagsByCategory.education || [],
+            mood: tagsByCategory.mood || [],
+            custom_tags: customTags
+        };
+
+        const response = await fetch('/journal/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            const toast = new bootstrap.Toast(document.getElementById('saveToast'));
+            toast.show();
+            unsavedChanges = false; // data is saved now
+        } else {
+            throw new Error('Failed to save');
+        }
+    }
+
+    // Called by the "Save Entry" button
+    async function saveEntry() {
+        try {
+            await saveEntryInternal();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error saving entry. Please try again.');
+        }
+    }
+
+    // ----  Set up navigation and initial load  ----
+    const datePicker = flatpickr("#datePicker", {
+        defaultDate: "{{ current_date }}",
+        dateFormat: "Y-m-d",
+        onChange: function(selectedDates) {
+            maybeNavigate(() => {
+                window.location.href = `/journal/${selectedDates[0].toISOString().split('T')[0]}`;
+            });
+        }
+    });
+
+    document.getElementById("prevDay").addEventListener("click", () => {
+        maybeNavigate(() => {
+            const currentDate = datePicker.selectedDates[0];
+            const newDate = new Date(currentDate.setDate(currentDate.getDate() - 1));
+            window.location.href = `/journal/${newDate.toISOString().split('T')[0]}`;
+        });
+    });
+
+    document.getElementById("nextDay").addEventListener("click", () => {
+        maybeNavigate(() => {
+            const currentDate = datePicker.selectedDates[0];
+            const newDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
+            window.location.href = `/journal/${newDate.toISOString().split('T')[0]}`;
+        });
+    });
+
+    // Toggle to Reflections link
+    document.getElementById("toggleReflections").addEventListener("click", (e) => {
+        e.preventDefault();
+        const href = e.target.closest('a').href; 
+        maybeNavigate(() => {
+            window.location.href = href;
+        });
+    });
+
+    // Toggle to Daily Log link
+    document.getElementById("toggleDailyLog").addEventListener("click", (e) => {
+        // If it's already active, do nothing
+        if (!e.target.closest('a').classList.contains('active')) {
+            e.preventDefault();
+            const href = e.target.closest('a').href;
+            maybeNavigate(() => {
+                window.location.href = href;
+            });
+        }
+    });
+
+    // Tag toggling
+    document.querySelectorAll(".tag-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            btn.classList.toggle("active");
+        });
+    });
+
+    // Load entry data
+    async function loadEntry() {
+        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        try {
+            const response = await fetch(`/journal/entry/${date}`);
+            if (!response.ok) {
+                throw new Error('Failed to load entry');
+            }
+            const data = await response.json();
+            
+            document.getElementById("content").value = data.content || '';
+            document.getElementById("summary").value = data.summary || '';
+            document.getElementById("dayScore").value = data.day_score || '';
+            document.getElementById("productivityScore").value = data.productivity_score || '';
+            
+            // Reset all tags
+            document.querySelectorAll(".tag-btn").forEach(btn => {
+                btn.classList.remove("active");
+                const category = btn.dataset.category;
+                if (data[category] && data[category].includes(btn.dataset.tag)) {
+                    btn.classList.add("active");
+                }
+            });
+            document.getElementById("customTags").value = data.custom_tags ? data.custom_tags.join(", ") : '';
+
+            unsavedChanges = false;
+        } catch (error) {
+            console.error('Error loading entry:', error);
+        }
+    }
+
+    // On page load
+    attachChangeListeners();
+    loadEntry();
+</script>
+
+<!-- Toast for save confirmation -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="saveToast" class="toast align-items-center text-white bg-success border-0"
+         role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                Entry saved successfully!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                    data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}

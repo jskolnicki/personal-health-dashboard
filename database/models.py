@@ -25,6 +25,8 @@ class Users(UserMixin, db.Model):
     sleep_data = db.relationship("SleepData", back_populates="user", lazy='dynamic')
     nap_data = db.relationship("NapData", back_populates="user", lazy='dynamic')
     integrations = db.relationship('UserIntegrations', back_populates='user')
+    # daily_logs = db.relationship('DailyLogs', back_populates='user', lazy='dynamic')
+    # reflections = db.relationship('Reflections', back_populates='user', lazy='dynamic')
 
     def __init__(self, username, email, password=None, **kwargs):
         super(Users, self).__init__(**kwargs)
@@ -258,3 +260,58 @@ class Vitals(db.Model):
     drinks = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+
+class DailyLogs(db.Model):
+    __tablename__ = 'daily_logs'
+    
+    # Composite primary key of user_id and date
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    date = db.Column(db.Date, primary_key=True)
+    
+    content = db.Column(db.String(10000), nullable=False)
+    summary = db.Column(db.String(1000), nullable=True)
+    
+    # Ratings
+    day_score = db.Column(db.SmallInteger, nullable=True)
+    productivity_score = db.Column(db.SmallInteger, nullable=True)
+    
+    # Tags
+    activities = db.Column(db.String(500), nullable=True)
+    social = db.Column(db.String(500), nullable=True)
+    education = db.Column(db.String(500), nullable=True)
+    mood = db.Column(db.String(500), nullable=True)
+    custom_tags = db.Column(db.String(500), nullable=True)
+    
+    # Metadata
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    user = db.relationship('Users', backref=db.backref('daily_logs', lazy=True))
+
+    __table_args__ = (
+        # No need for additional unique constraint since user_id and date are already the primary key
+        Index('idx_daily_logs_user_date', 'user_id', 'date'),  # For efficient querying
+    )
+
+class Reflections(db.Model):
+    __tablename__ = 'reflections'
+    
+    # Composite primary key of user_id and date
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    date = db.Column(db.Date, primary_key=True)
+    
+    content = db.Column(db.String(10000), nullable=False)
+    themes = db.Column(db.String(500), nullable=True)
+    title = db.Column(db.String(200), nullable=True)  # Optional title
+    
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    user = db.relationship('Users', backref=db.backref('reflections', lazy=True))
+
+    __table_args__ = (
+        # No need for additional unique constraint since user_id and date are already the primary key
+        Index('idx_reflections_user_date', 'user_id', 'date'),  # For efficient querying
+    )
