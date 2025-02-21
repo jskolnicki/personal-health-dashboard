@@ -5,48 +5,84 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
+
+        <!-- Card with a styled header -->
         <div class="card shadow-sm">
-            <div class="card-body">
+
+            <!-- NEW: Card header for a more modern look -->
+            <div class="card-header text-white" 
+                 style="background: linear-gradient(45deg, #20c997, #198754);">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    Reflections
+                </h5>
+            </div>
+
+            <div class="card-body" style="line-height: 1.6; font-size: 1rem;">
+                
                 <!-- Entry Type Toggle -->
                 <div class="d-flex justify-content-center mb-4">
                     <div class="btn-group" role="group">
-                        <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}" 
-                           class="btn btn-outline-primary">Daily Log</a>
-                        <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}" 
-                           class="btn btn-primary active">Reflections</a>
+                        <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}"
+                           class="btn btn-outline-primary">
+                            <i class="bi bi-pencil-square me-1"></i>Daily Log
+                        </a>
+                        <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}"
+                           class="btn btn-primary active">
+                            <i class="bi bi-lightbulb me-1"></i>Reflections
+                        </a>
                     </div>
                 </div>
 
                 <!-- Date Navigation -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <button id="prevReflection" class="btn btn-outline-primary">← Previous Reflection</button>
-                    <input type="text" id="datePicker" class="form-control text-center mx-2" style="max-width: 150px;" value="{{ current_date }}">
-                    <button id="nextReflection" class="btn btn-outline-primary">Next Reflection →</button>
+                    <button id="prevReflection" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left-short"></i> Previous
+                    </button>
+                    <input type="text" id="datePicker" 
+                           class="form-control text-center mx-2"
+                           style="max-width: 150px;"
+                           value="{{ current_date }}">
+                    <button id="nextReflection" class="btn btn-outline-primary">
+                        Next <i class="bi bi-arrow-right-short"></i>
+                    </button>
                 </div>
 
-                <!-- Main Content -->
+                <!-- Reflection Text -->
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Reflection</label>
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-journal-bookmark me-1"></i>Reflection
+                    </label>
                     <div class="form-text mb-2">
-                        Use this space for deeper reflections, long-term thoughts, and broader insights that go beyond daily events.
+                        Use this space for deeper reflections, long-term thoughts, 
+                        and broader insights that go beyond daily events.
                     </div>
-                    <textarea id="content" class="form-control font-monospace" rows="20" 
-                              placeholder="Write your reflection here..."
-                              style="resize: vertical;"></textarea>
+                    <textarea id="content"
+                              class="form-control"
+                              rows="20"
+                              placeholder="Write your reflection here (use '- ' or '* ' to create bullet points)..."
+                              style="resize: vertical; border-radius: 6px;">
+                    </textarea>
                 </div>
 
                 <!-- Themes -->
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Themes</label>
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-tags me-1"></i>Themes
+                    </label>
                     <div class="form-text mb-2">
                         Add relevant themes or topics for this reflection (comma-separated)
                     </div>
-                    <input type="text" id="themes" class="form-control" 
+                    <input type="text" id="themes"
+                           class="form-control"
+                           style="border-radius: 6px;"
                            placeholder="e.g., career growth, relationships, personal development">
                 </div>
 
                 <!-- Save Button -->
-                <button id="saveReflection" class="btn btn-primary w-100">Save Reflection</button>
+                <button id="saveReflection" class="btn btn-success w-100">
+                    <i class="bi bi-save me-1"></i>Save Reflection
+                </button>
             </div>
         </div>
     </div>
@@ -55,6 +91,10 @@
 <!-- Add Flatpickr for date picking -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+
+<style>
+/* You could mirror the .tag-btn transitions here if you had any quick tags for reflections */
+</style>
 
 <script>
     // Initialize date picker
@@ -98,7 +138,6 @@
     document.getElementById("prevReflection").addEventListener("click", () => {
         navigateReflection('prev');
     });
-
     document.getElementById("nextReflection").addEventListener("click", () => {
         navigateReflection('next');
     });
@@ -117,7 +156,6 @@
             document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
         } catch (error) {
             console.error('Error loading reflection:', error);
-            // You might want to show an error message to the user here
         }
     }
 
@@ -163,12 +201,14 @@
 
 <!-- Toast for save confirmation -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-    <div id="saveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div id="saveToast" class="toast align-items-center text-white bg-success border-0"
+         role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
             <div class="toast-body">
                 Reflection saved successfully!
             </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                    data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
 </div>

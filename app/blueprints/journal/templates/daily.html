@@ -5,65 +5,114 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
+
+        <!-- Card with a styled header -->
         <div class="card shadow-sm">
-            <div class="card-body">
+
+            <!-- NEW: Card header for a more modern look -->
+            <div class="card-header text-white" 
+                 style="background: linear-gradient(45deg, #0d6efd, #6610f2);">
+                <h5 class="mb-0">
+                    <i class="bi bi-journal-text me-2"></i>
+                    Daily Journal
+                </h5>
+            </div>
+
+            <div class="card-body" style="line-height: 1.6; font-size: 1rem;">
+                
                 <!-- Entry Type Toggle -->
                 <div class="d-flex justify-content-center mb-4">
                     <div class="btn-group" role="group">
-                        <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}" 
-                           class="btn btn-primary active">Daily Log</a>
-                        <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}" 
-                           class="btn btn-outline-primary">Reflections</a>
+                        <a href="{{ url_for('journal.load_daily_page', date_str=current_date) }}"
+                           class="btn btn-primary active">
+                            <i class="bi bi-pencil-square me-1"></i>Daily Log
+                        </a>
+                        <a href="{{ url_for('journal.load_reflections_page', date_str=current_date) }}"
+                           class="btn btn-outline-primary">
+                            <i class="bi bi-lightbulb me-1"></i>Reflections
+                        </a>
                     </div>
                 </div>
 
                 <!-- Date Navigation -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <button id="prevDay" class="btn btn-outline-primary">←</button>
-                    <input type="text" id="datePicker" class="form-control text-center mx-2" style="max-width: 150px;" value="{{ current_date }}">
-                    <button id="nextDay" class="btn btn-outline-primary">→</button>
+                    <button id="prevDay" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left-short"></i>
+                    </button>
+                    <input type="text" 
+                           id="datePicker" 
+                           class="form-control text-center mx-2" 
+                           style="max-width: 150px;" 
+                           value="{{ current_date }}">
+                    <button id="nextDay" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-right-short"></i>
+                    </button>
                 </div>
 
-                <!-- Main Content -->
+                <!-- Journal Entry -->
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Journal Entry</label>
-                    <textarea id="content" class="form-control font-monospace" rows="15" 
-                              placeholder="Write your daily entry here..."
-                              style="resize: vertical;"></textarea>
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-bookmark-check me-1"></i>Journal Entry
+                    </label>
+                    <textarea id="content"
+                              class="form-control"
+                              rows="15"
+                              placeholder="Use '- ' or '* ' at the start of lines to create bullet points..."
+                              style="resize: vertical; border-radius: 6px;">
+                    </textarea>
                 </div>
 
+                <!-- Summary -->
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Summary (Optional)</label>
-                    <textarea id="summary" class="form-control" rows="3" 
-                              placeholder="Brief summary of the day..."></textarea>
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-card-text me-1"></i>Summary (Optional)
+                    </label>
+                    <textarea id="summary"
+                              class="form-control"
+                              rows="3"
+                              placeholder="Brief summary of the day..."
+                              style="border-radius: 6px;">
+                    </textarea>
                 </div>
 
                 <!-- Ratings -->
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Day Score (1-10)</label>
-                        <input type="number" id="dayScore" class="form-control" 
-                               min="{{ default_scores.day_score.min }}" 
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-emoji-smile me-1"></i>Day Score (1-10)
+                        </label>
+                        <input type="number"
+                               id="dayScore"
+                               class="form-control"
+                               min="{{ default_scores.day_score.min }}"
                                max="{{ default_scores.day_score.max }}"
-                               placeholder="Rate your day">
+                               placeholder="Rate your day"
+                               style="border-radius: 6px;">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Productivity Score (1-10)</label>
-                        <input type="number" id="productivityScore" class="form-control"
-                               min="{{ default_scores.productivity_score.min }}" 
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-speedometer2 me-1"></i>Productivity Score (1-10)
+                        </label>
+                        <input type="number"
+                               id="productivityScore"
+                               class="form-control"
+                               min="{{ default_scores.productivity_score.min }}"
                                max="{{ default_scores.productivity_score.max }}"
-                               placeholder="Rate your productivity">
+                               placeholder="Rate your productivity"
+                               style="border-radius: 6px;">
                     </div>
                 </div>
 
                 <!-- Quick Tags -->
                 {% for category, tags in quick_tags.items() %}
                 <div class="mb-4">
-                    <label class="form-label fw-bold text-capitalize">{{ category }}</label>
+                    <label class="form-label fw-bold text-capitalize">
+                        <i class="bi bi-tags me-1"></i>{{ category }}
+                    </label>
                     <div class="d-flex flex-wrap gap-2" id="{{ category }}Tags">
                         {% for tag in tags %}
-                        <button class="tag-btn btn btn-outline-secondary btn-sm" 
-                                data-tag="{{ tag }}" 
+                        <button class="tag-btn btn btn-outline-secondary btn-sm"
+                                data-tag="{{ tag }}"
                                 data-category="{{ category }}">
                             {{ tag|replace('_', ' ')|title }}
                         </button>
@@ -74,13 +123,20 @@
 
                 <!-- Custom Tags -->
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Custom Tags</label>
-                    <input type="text" id="customTags" class="form-control" 
-                           placeholder="Enter tags separated by commas">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-list-stars me-1"></i>Custom Tags
+                    </label>
+                    <input type="text"
+                           id="customTags"
+                           class="form-control"
+                           placeholder="Enter tags separated by commas"
+                           style="border-radius: 6px;">
                 </div>
 
                 <!-- Save Button -->
-                <button id="saveEntry" class="btn btn-primary w-100">Save Entry</button>
+                <button id="saveEntry" class="btn btn-success w-100">
+                    <i class="bi bi-save me-1"></i>Save Entry
+                </button>
             </div>
         </div>
     </div>
@@ -91,9 +147,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
 
 <style>
-.tag-btn.active {
+/* Animate quick tags so they feel less bland */
+.tag-btn {
+    transition: background-color 0.3s, color 0.3s;
+}
+.tag-btn:hover {
     background-color: var(--bs-primary);
-    color: white;
+    color: #fff;
 }
 </style>
 
@@ -154,7 +214,6 @@
             document.getElementById("customTags").value = data.custom_tags ? data.custom_tags.join(", ") : '';
         } catch (error) {
             console.error('Error loading entry:', error);
-            // You might want to show an error message to the user here
         }
     }
 
@@ -217,12 +276,14 @@
 
 <!-- Toast for save confirmation -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-    <div id="saveToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div id="saveToast" class="toast align-items-center text-white bg-success border-0"
+         role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
             <div class="toast-body">
                 Entry saved successfully!
             </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                    data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
 </div>
