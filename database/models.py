@@ -25,8 +25,8 @@ class Users(UserMixin, db.Model):
     sleep_data = db.relationship("SleepData", back_populates="user", lazy='dynamic')
     nap_data = db.relationship("NapData", back_populates="user", lazy='dynamic')
     integrations = db.relationship('UserIntegrations', back_populates='user')
-    daily_logs = db.relationship('DailyLogs', back_populates='user', lazy='dynamic')
-    reflections = db.relationship('Reflections', back_populates='user', lazy='dynamic')
+    # daily_logs = db.relationship('DailyLogs', back_populates='user', lazy='dynamic')
+    # reflections = db.relationship('Reflections', back_populates='user', lazy='dynamic')
 
     def __init__(self, username, email, password=None, **kwargs):
         super(Users, self).__init__(**kwargs)
@@ -264,47 +264,54 @@ class Vitals(db.Model):
 class DailyLogs(db.Model):
     __tablename__ = 'daily_logs'
     
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
-    date = db.Column(db.Date, nullable=False)
+    # Composite primary key of user_id and date
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    date = db.Column(db.Date, primary_key=True)
+    
     content = db.Column(db.String(10000), nullable=False)
     summary = db.Column(db.String(1000), nullable=True)
+    
+    # Ratings
     day_score = db.Column(db.SmallInteger, nullable=True)
     productivity_score = db.Column(db.SmallInteger, nullable=True)
+    
+    # Tags
     activities = db.Column(db.String(500), nullable=True)
     social = db.Column(db.String(500), nullable=True)
     education = db.Column(db.String(500), nullable=True)
     mood = db.Column(db.String(500), nullable=True)
     custom_tags = db.Column(db.String(500), nullable=True)
+    
+    # Metadata
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
-    
-    # Relationship back to User
-    user = db.relationship('Users', back_populates='daily_logs')
-    
+
+    # Relationships
+    user = db.relationship('Users', backref=db.backref('daily_logs', lazy=True))
+
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'date', name='uix_user_date'),
-        Index('idx_daily_logs_date', 'date'),
-        Index('idx_daily_logs_user_date', 'user_id', 'date'),
+        # No need for additional unique constraint since user_id and date are already the primary key
+        Index('idx_daily_logs_user_date', 'user_id', 'date'),  # For efficient querying
     )
 
 class Reflections(db.Model):
     __tablename__ = 'reflections'
     
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
-    date = db.Column(db.Date, nullable=False)
-    title = db.Column(db.String(200), nullable=False)
+    # Composite primary key of user_id and date
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    date = db.Column(db.Date, primary_key=True)
+    
     content = db.Column(db.String(10000), nullable=False)
     themes = db.Column(db.String(500), nullable=True)
+    title = db.Column(db.String(200), nullable=True)  # Optional title
+    
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
-    
-    # Relationship back to User
-    user = db.relationship('Users', back_populates='reflections')
-    
+
+    # Relationships
+    user = db.relationship('Users', backref=db.backref('reflections', lazy=True))
+
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'date', name='uix_user_date_reflection'),
-        Index('idx_reflections_date', 'date'),
-        Index('idx_reflections_user_date', 'user_id', 'date'),
+        # No need for additional unique constraint since user_id and date are already the primary key
+        Index('idx_reflections_user_date', 'user_id', 'date'),  # For efficient querying
     )

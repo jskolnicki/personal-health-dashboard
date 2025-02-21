@@ -1,15 +1,153 @@
 {% extends "base.html" %}
-
 {% block title %}Home{% endblock %}
+{% block head %}
+<style>
+    .dashboard-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+    }
+    
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .stat-card {
+        border-left: 4px solid;
+    }
+
+    .quick-access-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
+<div class="container py-4">
+    <!-- Welcome Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-primary text-white">
+                <div class="card-body p-4">
+                    <h1 class="display-4">Welcome{% if current_user.is_authenticated %}, {{ current_user.username }}{% endif %}!</h1>
+                    <p class="lead">Track, analyze, and improve your daily life with comprehensive insights.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<h1>Welcome!</h1>
-<br>
+    <!-- Quick Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #4e73df;">
+                <div class="card-body">
+                    <h5 class="text-primary">Today's Focus Time</h5>
+                    <h2 class="mb-0">4.5 hrs</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #1cc88a;">
+                <div class="card-body">
+                    <h5 class="text-success">Last Night's Sleep</h5>
+                    <h2 class="mb-0">7.2 hrs</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #36b9cc;">
+                <div class="card-body">
+                    <h5 class="text-info">Journal Entries</h5>
+                    <h2 class="mb-0">142</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card" style="border-left-color: #f6c23e;">
+                <div class="card-body">
+                    <h5 class="text-warning">Active Integrations</h5>
+                    <h2 class="mb-0">3</h2>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<h2>Main Pages</h2>
-    <ul>
-        <h3><a href="{{ url_for('rize.load_rize_dashboard') }}">Rize Dashboard</a></h3>
-    </ul>
+    <!-- Main Dashboard Section -->
+    <div class="row mb-4">
+        <!-- Quick Access -->
+        <div class="col-md-6 mb-4">
+            <div class="card dashboard-card h-100">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Quick Access</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-4">
+                            <a href="{{ url_for('rize.load_rize_dashboard') }}" class="text-decoration-none">
+                                <div class="quick-access-icon text-primary">📊</div>
+                                <h5>Rize Dashboard</h5>
+                                <p class="text-muted">Track your productivity</p>
+                            </a>
+                        </div>
+                        <div class="col-6 mb-4">
+                            <a href="{{ url_for('journal.load_daily_page') }}" class="text-decoration-none">
+                                <div class="quick-access-icon text-success">📝</div>
+                                <h5>Journal</h5>
+                                <p class="text-muted">Record your thoughts</p>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <!-- About Me -->
+        <div class="col-md-6 mb-4">
+            <div class="card dashboard-card h-100">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">About Me</h4>
+                </div>
+                <div class="card-body">
+                    <p>This is your personal dashboard for tracking various aspects of your life, including:</p>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">✨ Productivity metrics and focus sessions</li>
+                        <li class="mb-2">💤 Sleep patterns and quality</li>
+                        <li class="mb-2">📊 Daily activity and health data</li>
+                        <li class="mb-2">📝 Personal journal entries and reflections</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card dashboard-card">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Recent Activity</h4>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Journal Entry Added</h5>
+                                <small class="text-muted">3 hours ago</small>
+                            </div>
+                            <p class="mb-1">You completed your daily reflection.</p>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Rize Session Completed</h5>
+                                <small class="text-muted">5 hours ago</small>
+                            </div>
+                            <p class="mb-1">Focused work session: 2.5 hours</p>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
