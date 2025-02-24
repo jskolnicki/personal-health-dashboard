@@ -303,7 +303,7 @@ class Reflections(db.Model):
     
     content = db.Column(db.String(10000), nullable=False)
     themes = db.Column(db.String(500), nullable=True)
-    title = db.Column(db.String(200), nullable=True)  # Optional title
+    summary = db.Column(db.String(1000), nullable=True)  # Changed from title to summary, increased length
     
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
@@ -312,6 +312,5 @@ class Reflections(db.Model):
     user = db.relationship('Users', backref=db.backref('reflections', lazy=True))
 
     __table_args__ = (
-        # No need for additional unique constraint since user_id and date are already the primary key
         Index('idx_reflections_user_date', 'user_id', 'date'),  # For efficient querying
     )

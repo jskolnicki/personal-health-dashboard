@@ -220,17 +220,20 @@
 </style>
 
 <script>
+    // Global state management
     let unsavedChanges = false;
-    let pendingNavigation = null; // We'll store the function we want to call after user decides
-
+    let pendingNavigation = null;
+    let currentEditingDate = null;
+    let targetDate = null;
+    
     // Mark as unsaved whenever user changes input
     function setUnsaved() {
         unsavedChanges = true;
     }
-
-    // We'll attach setUnsaved() to relevant fields
+    
+    // Attach change listeners to all input fields
     function attachChangeListeners() {
-        const fields = ['content','summary','dayScore','productivityScore','customTags'];
+        const fields = ['content', 'summary', 'dayScore', 'productivityScore', 'customTags'];
         fields.forEach(id => {
             document.getElementById(id).addEventListener('input', setUnsaved);
         });
@@ -239,8 +242,32 @@
             btn.addEventListener("click", setUnsaved);
         });
     }
-
-    // Instead of confirm(), we show the modal and store a callback
+    
+    // Initialize date picker
+    const datePicker = flatpickr("#datePicker", {
+        defaultDate: "{{ current_date }}",
+        dateFormat: "Y-m-d",
+        onChange: function(selectedDates, dateStr, instance) {
+            // If a user picked a new date in the calendar:
+            if (selectedDates && selectedDates.length > 0) {
+                // Compare to the current date we are editing
+                if (dateStr !== currentEditingDate) {
+                    targetDate = dateStr;
+                    // Show unsaved-changes prompt if needed
+                    maybeNavigate(() => {
+                        // If the user chooses to continue, navigate
+                        window.location.href = `/journal/${targetDate}`;
+                    });
+                    
+                    // Immediately revert the visible date to keep the input in sync
+                    // until the user decides in the modal
+                    instance.setDate(currentEditingDate, false);
+                }
+            }
+        }
+    });
+    
+    // Check for unsaved changes before navigation
     function maybeNavigate(callback) {
         if (!unsavedChanges) {
             callback();
@@ -250,134 +277,64 @@
             modal.show();
         }
     }
-
-    // Called by "Save & Continue" button
-    async function saveAndContinue() {
-        // We'll do exactly what saveEntry does, then call pendingNavigation
-        await saveEntryInternal();
-        closeUnsavedModal();
-        if (typeof pendingNavigation === 'function') {
-            pendingNavigation();
-        }
+    
+    // Handle arrow navigation
+    document.getElementById("prevDay").addEventListener("click", () => {
+        const currentDate = new Date(currentEditingDate);
+        const newDate = new Date(currentDate.setDate(currentDate.getDate() - 1));
+        targetDate = newDate.toISOString().split('T')[0];
+        maybeNavigate(() => {
+            window.location.href = `/journal/${targetDate}`;
+        });
+    });
+    
+    document.getElementById("nextDay").addEventListener("click", () => {
+        const currentDate = new Date(currentEditingDate);
+        const newDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
+        targetDate = newDate.toISOString().split('T')[0];
+        maybeNavigate(() => {
+            window.location.href = `/journal/${targetDate}`;
+        });
+    });
+    
+    // Modal action handlers
+    function saveAndContinue() {
+        saveEntry(true);
     }
-
-    // Called by "Discard & Continue" button
+    
     function discardAndContinue() {
-        unsavedChanges = false; // discard changes
+        unsavedChanges = false;
         closeUnsavedModal();
         if (typeof pendingNavigation === 'function') {
             pendingNavigation();
         }
     }
-
-    // Called by "Cancel" button or the modal close "X"
+    
+    // Revert any navigation attempt
     function cancelModal() {
         pendingNavigation = null;
+        targetDate = null;
+        // If the user cancels, revert date picker if needed
+        if (currentEditingDate !== datePicker.input.value) {
+            datePicker.setDate(currentEditingDate, false);
+        }
     }
-
+    
     function closeUnsavedModal() {
         const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedModal'));
         modal.hide();
     }
-
-    // We'll separate out the actual save logic so "saveEntry" can call it
-    async function saveEntryInternal() {
-        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
-        
-        // Collect tags
-        const tagsByCategory = {};
-        document.querySelectorAll(".tag-btn.active").forEach(btn => {
-            const category = btn.dataset.category;
-            if (!tagsByCategory[category]) {
-                tagsByCategory[category] = [];
-            }
-            tagsByCategory[category].push(btn.dataset.tag);
-        });
-        
-        const customTags = document.getElementById("customTags").value
-            .split(",")
-            .map(tag => tag.trim())
-            .filter(tag => tag);
-
-        const data = {
-            date: date,
-            content: document.getElementById("content").value,
-            summary: document.getElementById("summary").value,
-            day_score: parseInt(document.getElementById("dayScore").value) || null,
-            productivity_score: parseInt(document.getElementById("productivityScore").value) || null,
-            activities: tagsByCategory.activities || [],
-            social: tagsByCategory.social || [],
-            education: tagsByCategory.education || [],
-            mood: tagsByCategory.mood || [],
-            custom_tags: customTags
-        };
-
-        const response = await fetch('/journal/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-            const toast = new bootstrap.Toast(document.getElementById('saveToast'));
-            toast.show();
-            unsavedChanges = false; // data is saved now
-        } else {
-            throw new Error('Failed to save');
-        }
-    }
-
-    // Called by the "Save Entry" button
-    async function saveEntry() {
-        try {
-            await saveEntryInternal();
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error saving entry. Please try again.');
-        }
-    }
-
-    // ----  Set up navigation and initial load  ----
-    const datePicker = flatpickr("#datePicker", {
-        defaultDate: "{{ current_date }}",
-        dateFormat: "Y-m-d",
-        onChange: function(selectedDates) {
-            maybeNavigate(() => {
-                window.location.href = `/journal/${selectedDates[0].toISOString().split('T')[0]}`;
-            });
-        }
-    });
-
-    document.getElementById("prevDay").addEventListener("click", () => {
-        maybeNavigate(() => {
-            const currentDate = datePicker.selectedDates[0];
-            const newDate = new Date(currentDate.setDate(currentDate.getDate() - 1));
-            window.location.href = `/journal/${newDate.toISOString().split('T')[0]}`;
-        });
-    });
-
-    document.getElementById("nextDay").addEventListener("click", () => {
-        maybeNavigate(() => {
-            const currentDate = datePicker.selectedDates[0];
-            const newDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
-            window.location.href = `/journal/${newDate.toISOString().split('T')[0]}`;
-        });
-    });
-
-    // Toggle to Reflections link
+    
+    // Reflections navigation handling
     document.getElementById("toggleReflections").addEventListener("click", (e) => {
         e.preventDefault();
-        const href = e.target.closest('a').href; 
+        const href = e.target.closest('a').href;
         maybeNavigate(() => {
             window.location.href = href;
         });
     });
-
-    // Toggle to Daily Log link
+    
     document.getElementById("toggleDailyLog").addEventListener("click", (e) => {
-        // If it's already active, do nothing
         if (!e.target.closest('a').classList.contains('active')) {
             e.preventDefault();
             const href = e.target.closest('a').href;
@@ -386,29 +343,91 @@
             });
         }
     });
-
+    
     // Tag toggling
     document.querySelectorAll(".tag-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             btn.classList.toggle("active");
         });
     });
-
+    
+    // Save entry function
+    async function saveEntry(isModalSave = false) {
+        try {
+            const date = currentEditingDate;
+    
+            // Collect tags
+            const tagsByCategory = {};
+            document.querySelectorAll(".tag-btn.active").forEach(btn => {
+                const category = btn.dataset.category;
+                if (!tagsByCategory[category]) {
+                    tagsByCategory[category] = [];
+                }
+                tagsByCategory[category].push(btn.dataset.tag);
+            });
+            
+            const customTags = document.getElementById("customTags").value
+                .split(",")
+                .map(tag => tag.trim())
+                .filter(tag => tag);
+    
+            const data = {
+                date: date,
+                content: document.getElementById("content").value,
+                summary: document.getElementById("summary").value,
+                day_score: parseInt(document.getElementById("dayScore").value) || null,
+                productivity_score: parseInt(document.getElementById("productivityScore").value) || null,
+                activities: tagsByCategory.activities || [],
+                social: tagsByCategory.social || [],
+                education: tagsByCategory.education || [],
+                mood: tagsByCategory.mood || [],
+                custom_tags: customTags
+            };
+    
+            const response = await fetch('/journal/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+    
+            if (!response.ok) {
+                throw new Error('Failed to save entry');
+            }
+    
+            // Show success toast
+            const toast = new bootstrap.Toast(document.getElementById('saveToast'));
+            toast.show();
+            unsavedChanges = false;
+    
+            if (isModalSave) {
+                closeUnsavedModal();
+                if (typeof pendingNavigation === 'function') {
+                    pendingNavigation();
+                }
+            }
+        } catch (error) {
+            console.error('Error saving entry:', error);
+            alert('Error saving entry. Please try again.');
+        }
+    }
+    
     // Load entry data
     async function loadEntry() {
-        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
+        const date = currentEditingDate;
         try {
             const response = await fetch(`/journal/entry/${date}`);
             if (!response.ok) {
                 throw new Error('Failed to load entry');
             }
             const data = await response.json();
-            
+    
             document.getElementById("content").value = data.content || '';
             document.getElementById("summary").value = data.summary || '';
             document.getElementById("dayScore").value = data.day_score || '';
             document.getElementById("productivityScore").value = data.productivity_score || '';
-            
+    
             // Reset all tags
             document.querySelectorAll(".tag-btn").forEach(btn => {
                 btn.classList.remove("active");
@@ -418,16 +437,27 @@
                 }
             });
             document.getElementById("customTags").value = data.custom_tags ? data.custom_tags.join(", ") : '';
-
+    
             unsavedChanges = false;
         } catch (error) {
             console.error('Error loading entry:', error);
         }
     }
-
-    // On page load
-    attachChangeListeners();
-    loadEntry();
+    
+    // Initialize everything when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set the initial current editing date
+        currentEditingDate = datePicker.selectedDates[0].toISOString().split('T')[0];
+        
+        // Initialize listeners and handlers
+        attachChangeListeners();
+        
+        // Set up save button
+        document.getElementById("saveEntry").addEventListener("click", () => saveEntry(false));
+        
+        // Load initial entry data
+        loadEntry();
+    });
 </script>
 
 <!-- Toast for save confirmation -->

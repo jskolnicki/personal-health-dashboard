@@ -9,7 +9,7 @@ from database.models import DailyLogs, Reflections
 from pathlib import Path
 from sqlalchemy import desc
 
-def save_to_markdown(date_obj, content, tags=None, is_reflection=False):
+def save_to_markdown(date_obj, content, tags=None, summary=None, is_reflection=True):
     """Save entry to markdown file in Documents/PersonalDashboard/{Journal|Reflections}"""
     # Get user's Documents folder path
     documents_path = Path.home() / "Documents"
@@ -26,6 +26,12 @@ def save_to_markdown(date_obj, content, tags=None, is_reflection=False):
     markdown_content = f"# {date_obj.strftime('%Y-%m-%d')}\n\n"
     markdown_content += content + "\n\n"
     
+    # Add summary if present
+    if summary and summary.strip():
+        markdown_content += "## Summary\n\n"
+        markdown_content += summary.strip() + "\n\n"
+    
+    # Add tags if present
     if tags and any(tags.values()):
         markdown_content += "\n## Tags\n"
         for tag_type, tag_list in tags.items():
@@ -115,6 +121,7 @@ def get_reflection(date_str):
         if reflection:
             return jsonify({
                 'content': reflection.content,
+                'summary': reflection.summary,
                 'themes': json.loads(reflection.themes) if reflection.themes else []
             })
         return jsonify({})
@@ -145,6 +152,7 @@ def navigate_reflections(date_str, direction):
             return jsonify({
                 'date': reflection.date.strftime('%Y-%m-%d'),
                 'content': reflection.content,
+                'summary': reflection.summary,
                 'themes': json.loads(reflection.themes) if reflection.themes else [],
                 'status': 'success'
             })
@@ -226,10 +234,8 @@ def save_reflection():
         data = request.json
         reflection_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
         
-        # Convert themes to JSON string
         themes = json.dumps(data.get('themes', []))
         
-        # Check for existing reflection
         reflection = Reflections.query.filter_by(
             date=reflection_date,
             user_id=current_user.user_id
@@ -237,23 +243,26 @@ def save_reflection():
         
         if reflection:
             reflection.content = data['content']
+            reflection.summary = data.get('summary', '')
             reflection.themes = themes
         else:
             reflection = Reflections(
                 user_id=current_user.user_id,
                 date=reflection_date,
                 content=data['content'],
+                summary=data.get('summary', ''),
                 themes=themes
             )
             db.session.add(reflection)
         
         db.session.commit()
         
-        # Save to markdown file
+        # Update save_to_markdown call
         save_to_markdown(
             reflection_date,
             data['content'],
-            {'themes': themes},
+            summary=data.get('summary', ''),
+            tags={'themes': themes},
             is_reflection=True
         )
         

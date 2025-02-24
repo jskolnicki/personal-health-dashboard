@@ -5,7 +5,6 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
-
         <div class="notepad p-3 mt-4 position-relative" style="padding-top: 2rem !important;">
             <div class="notepad-binding"></div>
 
@@ -47,15 +46,28 @@
                     <i class="bi bi-journal-bookmark me-1"></i>Reflection
                 </label>
                 <div class="form-text mb-2">
-                    Use this space for deeper reflections, long-term thoughts, 
+                    Use this space for deeper reflections, long-term thoughts,
                     and broader insights that go beyond daily events.
                 </div>
                 <textarea id="content"
                           class="form-control notepad-lines"
                           rows="20"
                           style="font-family: 'Nunito', sans-serif;"
-                          placeholder="Write your reflection here...">
-                </textarea>
+                          placeholder="Write your reflection here..."></textarea>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-bold">
+                    <i class="bi bi-card-text me-1"></i>Summary (Optional)
+                </label>
+                <div class="form-text mb-2">
+                    Add a brief summary or key takeaways from your reflection
+                </div>
+                <textarea id="summary"
+                          class="form-control notepad-lines"
+                          rows="3"
+                          style="font-family: 'Nunito', sans-serif;"
+                          placeholder="Write a brief summary..."></textarea>
             </div>
 
             <!-- Themes -->
@@ -81,7 +93,7 @@
     </div>
 </div>
 
-<!-- Unsaved Changes Modal (identical structure) -->
+<!-- Unsaved Changes Modal -->
 <div class="modal fade" id="unsavedModal" tabindex="-1" aria-labelledby="unsavedModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -101,7 +113,7 @@
   </div>
 </div>
 
-<!-- Flatpickr -->
+<!-- Flatpickr date picker -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
 
@@ -116,8 +128,8 @@
 
 .notepad-binding {
   position: absolute;
-  top: 0; 
-  left: 0; 
+  top: 0;
+  left: 0;
   width: 100%;
   height: 20px;
   background-color: #00326f;
@@ -146,64 +158,75 @@
 </style>
 
 <script>
-    let unsavedChanges = false;
-    let pendingNavigation = null;
+// -- Global state --
+let unsavedChanges = false;
+let pendingNavigation = null;
+let currentEditingDate = null;
+let targetDate = null;
 
-    function setUnsaved() { unsavedChanges = true; }
+// -- Mark as unsaved on input changes --
+function setUnsaved() {
+    unsavedChanges = true;
+}
 
-    function attachChangeListeners() {
-        document.getElementById('content').addEventListener('input', setUnsaved);
-        document.getElementById('themes').addEventListener('input', setUnsaved);
+function attachChangeListeners() {
+    document.getElementById('content').addEventListener('input', setUnsaved);
+    document.getElementById('summary').addEventListener('input', setUnsaved);
+    document.getElementById('themes').addEventListener('input', setUnsaved);
+}
+
+// -- Reusable unsaved-changes logic --
+function maybeNavigate(callback) {
+    if (!unsavedChanges) {
+        callback();
+    } else {
+        pendingNavigation = callback;
+        const modal = new bootstrap.Modal(document.getElementById('unsavedModal'));
+        modal.show();
     }
+}
 
-    // Show the unsaved-changes modal if needed
-    function maybeNavigate(callback) {
-        if (!unsavedChanges) {
-            callback();
-        } else {
-            pendingNavigation = callback;
-            const modal = new bootstrap.Modal(document.getElementById('unsavedModal'));
-            modal.show();
-        }
+function saveAndContinue() {
+    saveReflection(true);
+}
+
+function discardAndContinue() {
+    unsavedChanges = false;
+    closeUnsavedModal();
+    if (typeof pendingNavigation === 'function') {
+        pendingNavigation();
     }
+}
 
-    async function saveAndContinue() {
-        await saveReflectionInternal();
-        closeUnsavedModal();
-        if (typeof pendingNavigation === 'function') {
-            pendingNavigation();
-        }
+function cancelModal() {
+    pendingNavigation = null;
+    targetDate = null;
+    // Revert date picker if user cancels the modal
+    if (currentEditingDate !== datePicker.input.value) {
+        datePicker.setDate(currentEditingDate, false);
     }
+}
 
-    function discardAndContinue() {
-        unsavedChanges = false;
-        closeUnsavedModal();
-        if (typeof pendingNavigation === 'function') {
-            pendingNavigation();
-        }
-    }
+function closeUnsavedModal() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedModal'));
+    modal.hide();
+}
 
-    function cancelModal() {
-        pendingNavigation = null;
-    }
+// -- Save reflection to DB --
+async function saveReflection(isModalSave = false) {
+    try {
+        // Always use currentEditingDate to maintain consistent "editing date" 
+        const date = currentEditingDate;
 
-    function closeUnsavedModal() {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedModal'));
-        modal.hide();
-    }
-
-    // The actual saving logic used by "Save Reflection" button and "Save & Continue"
-    async function saveReflectionInternal() {
-        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
-        
         const themes = document.getElementById("themes").value
             .split(",")
-            .map(theme => theme.trim())
-            .filter(theme => theme);
+            .map(t => t.trim())
+            .filter(t => t);
 
         const data = {
             date: date,
             content: document.getElementById("content").value,
+            summary: document.getElementById("summary").value.trim(),
             themes: themes
         };
 
@@ -213,123 +236,141 @@
             body: JSON.stringify(data)
         });
 
-        if (response.ok) {
-            const toast = new bootstrap.Toast(document.getElementById('saveToast'));
-            toast.show();
-            unsavedChanges = false;
-        } else {
-            throw new Error('Failed to save');
+        if (!response.ok) {
+            throw new Error('Failed to save reflection');
         }
-    }
 
-    // Called by the "Save Reflection" button
-    async function saveReflection() {
-        try {
-            await saveReflectionInternal();
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error saving reflection. Please try again.');
-        }
-    }
+        // Show success toast
+        const toast = new bootstrap.Toast(document.getElementById('saveToast'));
+        toast.show();
+        unsavedChanges = false;
 
-    // Navigation
-    const datePicker = flatpickr("#datePicker", {
-        defaultDate: "{{ current_date }}",
-        dateFormat: "Y-m-d",
-        onChange: function(selectedDates) {
-            maybeNavigate(() => {
-                window.location.href = `/reflections/${selectedDates[0].toISOString().split('T')[0]}`;
-            });
-        }
-    });
-
-    document.getElementById("prevReflection").addEventListener("click", () => {
-        maybeNavigate(() => {
-            navigateReflection('prev');
-        });
-    });
-
-    document.getElementById("nextReflection").addEventListener("click", () => {
-        maybeNavigate(() => {
-            navigateReflection('next');
-        });
-    });
-
-    document.getElementById("toggleDailyLog").addEventListener("click", (e) => {
-        e.preventDefault();
-        const href = e.target.closest('a').href; 
-        maybeNavigate(() => {
-            window.location.href = href;
-        });
-    });
-
-    document.getElementById("toggleReflections").addEventListener("click", (e) => {
-        // If it's already active, do nothing
-        if (!e.target.closest('a').classList.contains('active')) {
-            e.preventDefault();
-            const href = e.target.closest('a').href;
-            maybeNavigate(() => {
-                window.location.href = href;
-            });
-        }
-    });
-
-    async function navigateReflection(direction) {
-        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
-        try {
-            const response = await fetch(`/reflections/navigate/${date}/${direction}`);
-            if (!response.ok) {
-                throw new Error('Navigation failed');
+        // If this was triggered from the modal ("Save & Continue")
+        if (isModalSave) {
+            closeUnsavedModal();
+            if (typeof pendingNavigation === 'function') {
+                pendingNavigation();
             }
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                datePicker.setDate(data.date);
-                document.getElementById("content").value = data.content || '';
-                document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
-                unsavedChanges = false;
-            } else if (data.status === 'no_entries') {
-                // Show the other alert modal for no earlier/later reflections
-                const modalBody = document.getElementById('alertModalBody');
-                modalBody.textContent = data.message;
-                const alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
-                alertModal.show();
-            }
-        } catch (error) {
-            console.error('Error navigating reflections:', error);
-            alert('Error navigating reflections. Please try again.');
         }
+    } catch (error) {
+        console.error('Error saving reflection:', error);
+        alert('Error saving reflection. Please try again.');
     }
+}
 
-    async function loadReflection() {
-        const date = datePicker.selectedDates[0].toISOString().split('T')[0];
-        try {
-            const response = await fetch(`/reflections/entry/${date}`);
-            if (!response.ok) {
-                throw new Error('Failed to load reflection');
-            }
-            const data = await response.json();
+// -- Load reflection from DB --
+async function loadReflection() {
+    const date = currentEditingDate;
+    try {
+        const response = await fetch(`/reflections/entry/${date}`);
+        if (!response.ok) {
+            throw new Error('Failed to load reflection');
+        }
+        const data = await response.json();
+        document.getElementById("content").value = data.content || '';
+        document.getElementById("summary").value = data.summary || '';
+        document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
+        unsavedChanges = false;
+    } catch (error) {
+        console.error('Error loading reflection:', error);
+    }
+}
+
+// -- Next/Prev reflection logic --
+async function navigateReflection(direction) {
+    const date = currentEditingDate;
+    try {
+        const response = await fetch(`/reflections/navigate/${date}/${direction}`);
+        if (!response.ok) {
+            throw new Error('Navigation failed');
+        }
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            // Update the date picker and reflection content
+            currentEditingDate = data.date;
+            datePicker.setDate(currentEditingDate, false);
             document.getElementById("content").value = data.content || '';
+            document.getElementById("summary").value = data.summary || '';
             document.getElementById("themes").value = data.themes ? data.themes.join(", ") : '';
             unsavedChanges = false;
-        } catch (error) {
-            console.error('Error loading reflection:', error);
+        } else if (data.status === 'no_entries') {
+            const modalBody = document.getElementById('alertModalBody');
+            modalBody.textContent = data.message;
+            const alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
+            alertModal.show();
+        }
+    } catch (error) {
+        console.error('Error navigating reflections:', error);
+        alert('Error navigating reflections. Please try again.');
+    }
+}
+
+// -- Initialize date picker --
+const datePicker = flatpickr("#datePicker", {
+    defaultDate: "{{ current_date }}",
+    dateFormat: "Y-m-d",
+    onChange: function(selectedDates, dateStr, instance) {
+        if (selectedDates && selectedDates.length > 0) {
+            // If user chose a new date, prompt if unsaved changes
+            if (dateStr !== currentEditingDate) {
+                targetDate = dateStr;
+                maybeNavigate(() => {
+                    window.location.href = `/reflections/${targetDate}`;
+                });
+                // Revert the visible date until user decides
+                instance.setDate(currentEditingDate, false);
+            }
         }
     }
+});
+
+// -- On page load --
+document.addEventListener('DOMContentLoaded', function() {
+    // Keep track of the date we're currently editing
+    currentEditingDate = datePicker.selectedDates[0].toISOString().split('T')[0];
 
     attachChangeListeners();
     loadReflection();
+
+    // Save button
+    document.getElementById("saveReflection").addEventListener("click", () => saveReflection(false));
+
+    // Prev/Next reflection
+    document.getElementById("prevReflection").addEventListener("click", () => {
+        maybeNavigate(() => navigateReflection('prev'));
+    });
+    document.getElementById("nextReflection").addEventListener("click", () => {
+        maybeNavigate(() => navigateReflection('next'));
+    });
+
+    // Toggle to daily log
+    document.getElementById("toggleDailyLog").addEventListener("click", (e) => {
+        e.preventDefault();
+        const href = e.target.closest('a').href;
+        maybeNavigate(() => { window.location.href = href; });
+    });
+
+    // Toggle to reflections (only navigates if not already active)
+    document.getElementById("toggleReflections").addEventListener("click", (e) => {
+        if (!e.target.closest('a').classList.contains('active')) {
+            e.preventDefault();
+            const href = e.target.closest('a').href;
+            maybeNavigate(() => { window.location.href = href; });
+        }
+    });
+});
 </script>
 
 <!-- Toast for save confirmation -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-    <div id="saveToast" class="toast align-items-center text-white bg-success border-0" 
+    <div id="saveToast" class="toast align-items-center text-white bg-success border-0"
          role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
             <div class="toast-body">
                 Reflection saved successfully!
             </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+            <button type="button" class="btn-close btn-close-white me-2 m-auto"
                     data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
