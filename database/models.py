@@ -268,7 +268,7 @@ class DailyLogs(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
     date = db.Column(db.Date, primary_key=True)
     
-    content = db.Column(db.String(10000), nullable=False)
+    content = db.Column(db.Text, nullable=False)
     summary = db.Column(db.String(1000), nullable=True)
     
     # Ratings
@@ -301,7 +301,7 @@ class Reflections(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
     date = db.Column(db.Date, primary_key=True)
     
-    content = db.Column(db.String(10000), nullable=False)
+    content = db.Column(db.Text, nullable=False)
     themes = db.Column(db.String(500), nullable=True)
     summary = db.Column(db.String(1000), nullable=True)  # Changed from title to summary, increased length
     
